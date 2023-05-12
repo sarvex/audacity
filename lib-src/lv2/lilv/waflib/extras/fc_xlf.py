@@ -29,8 +29,7 @@ def xlf_flags(conf):
 @conf
 def xlf_modifier_platform(conf):
 	dest_os = conf.env['DEST_OS'] or Utils.unversioned_sys_platform()
-	xlf_modifier_func = getattr(conf, 'xlf_modifier_' + dest_os, None)
-	if xlf_modifier_func:
+	if xlf_modifier_func := getattr(conf, f'xlf_modifier_{dest_os}', None):
 		xlf_modifier_func()
 
 @conf
@@ -45,8 +44,7 @@ def get_xlf_version(conf, fc):
 
 	for v in (r"IBM XL Fortran.* V(?P<major>\d*)\.(?P<minor>\d*)",):
 		version_re = re.compile(v, re.I).search
-		match = version_re(out or err)
-		if match:
+		if match := version_re(out or err):
 			k = match.groupdict()
 			conf.env['FC_VERSION'] = (k['major'], k['minor'])
 			break

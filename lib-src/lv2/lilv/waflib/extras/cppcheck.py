@@ -177,32 +177,34 @@ def cppcheck_execute(self):
 
 def _tgen_create_cmd(self):
 	features = getattr(self, 'features', [])
-	std_c = self.env.CPPCHECK_STD_C
-	std_cxx = self.env.CPPCHECK_STD_CXX
 	max_configs = self.env.CPPCHECK_MAX_CONFIGS
-	bin_enable = self.env.CPPCHECK_BIN_ENABLE
-	lib_enable = self.env.CPPCHECK_LIB_ENABLE
 	jobs = self.env.CPPCHECK_JOBS
 
 	cmd  = self.env.CPPCHECK
-	args = ['--inconclusive','--report-progress','--verbose','--xml','--xml-version=2']
-	args.append('--max-configs=%s' % max_configs)
-	args.append('-j %s' % jobs)
-
+	args = [
+		'--inconclusive',
+		'--report-progress',
+		'--verbose',
+		'--xml',
+		'--xml-version=2',
+		f'--max-configs={max_configs}',
+		f'-j {jobs}',
+	]
 	if 'cxx' in features:
-		args.append('--language=c++')
-		args.append('--std=%s' % std_cxx)
+		std_cxx = self.env.CPPCHECK_STD_CXX
+		args.extend(('--language=c++', f'--std={std_cxx}'))
 	else:
-		args.append('--language=c')
-		args.append('--std=%s' % std_c)
-
+		std_c = self.env.CPPCHECK_STD_C
+		args.extend(('--language=c', f'--std={std_c}'))
 	if Options.options.cppcheck_check_config:
 		args.append('--check-config')
 
-	if set(['cprogram','cxxprogram']) & set(features):
-		args.append('--enable=%s' % bin_enable)
+	if {'cprogram', 'cxxprogram'} & set(features):
+		bin_enable = self.env.CPPCHECK_BIN_ENABLE
+		args.append(f'--enable={bin_enable}')
 	else:
-		args.append('--enable=%s' % lib_enable)
+		lib_enable = self.env.CPPCHECK_LIB_ENABLE
+		args.append(f'--enable={lib_enable}')
 
 	for src in self.to_list(getattr(self, 'source', [])):
 		if not isinstance(src, str):
@@ -211,11 +213,11 @@ def _tgen_create_cmd(self):
 	for inc in self.to_incnodes(self.to_list(getattr(self, 'includes', []))):
 		if not isinstance(inc, str):
 			inc = repr(inc)
-		args.append('-I%s' % inc)
+		args.append(f'-I{inc}')
 	for inc in self.to_incnodes(self.to_list(self.env.INCLUDES)):
 		if not isinstance(inc, str):
 			inc = repr(inc)
-		args.append('-I%s' % inc)
+		args.append(f'-I{inc}')
 	return cmd + args
 
 
@@ -239,7 +241,7 @@ class cppcheck(Task.Task):
 		cmd = ElementTree.SubElement(root.find('cppcheck'), 'cmd')
 		cmd.text = str(self.cmd)
 		body = ElementTree.tostring(root).decode('us-ascii')
-		body_html_name = 'cppcheck-%s.xml' % self.generator.get_name()
+		body_html_name = f'cppcheck-{self.generator.get_name()}.xml'
 		if self.env.CPPCHECK_SINGLE_HTML:
 			body_html_name = 'cppcheck.xml'
 		node = self.generator.path.get_bld().find_or_declare(body_html_name)
@@ -251,8 +253,7 @@ class cppcheck(Task.Task):
 		'''
 		defects = []
 		for error in ElementTree.fromstring(xml_string).iter('error'):
-			defect = {}
-			defect['id'] = error.get('id')
+			defect = {'id': error.get('id')}
 			defect['severity'] = error.get('severity')
 			defect['msg'] = str(error.get('msg')).replace('<','&lt;')
 			defect['verbose'] = error.get('verbose')
@@ -273,7 +274,7 @@ class cppcheck(Task.Task):
 		defects = [defect for defect in defects if 'file' in defect]
 		for defect in defects:
 			name = defect['file']
-			if not name in sources:
+			if name not in sources:
 				sources[name] = [defect]
 			else:
 				sources[name].append(defect)
@@ -289,7 +290,7 @@ class cppcheck(Task.Task):
 			else:
 				htmlfile = 'cppcheck/%s%i.html' % (self.generator.get_name(),i)
 			errors = sources[name]
-			files[name] = { 'htmlfile': '%s/%s' % (bpath, htmlfile), 'errors': errors }
+			files[name] = {'htmlfile': f'{bpath}/{htmlfile}', 'errors': errors}
 			css_style_defs = self._create_html_file(name, htmlfile, errors)
 		return files, css_style_defs
 
@@ -297,7 +298,7 @@ class cppcheck(Task.Task):
 		name = self.generator.get_name()
 		root = ElementTree.fromstring(CPPCHECK_HTML_FILE)
 		title = root.find('head/title')
-		title.text = 'cppcheck - report - %s' % name
+		title.text = f'cppcheck - report - {name}'
 
 		body = root.find('body')
 		for div in body.findall('div'):
@@ -307,13 +308,13 @@ class cppcheck(Task.Task):
 		for div in page.findall('div'):
 			if div.get('id') == 'header':
 				h1 = div.find('h1')
-				h1.text = 'cppcheck report - %s' % name
+				h1.text = f'cppcheck report - {name}'
 			if div.get('id') == 'menu':
 				indexlink = div.find('a')
 				if self.env.CPPCHECK_SINGLE_HTML:
 					indexlink.attrib['href'] = 'index.html'
 				else:
-					indexlink.attrib['href'] = 'index-%s.html' % name
+					indexlink.attrib['href'] = f'index-{name}.html'
 			if div.get('id') == 'content':
 				content = div
 				srcnode = self.generator.bld.root.find_node(sourcefile)
@@ -336,7 +337,7 @@ class cppcheck(Task.Task):
 		name = self.generator.get_name()
 		root = ElementTree.fromstring(CPPCHECK_HTML_FILE)
 		title = root.find('head/title')
-		title.text = 'cppcheck - report - %s' % name
+		title.text = f'cppcheck - report - {name}'
 
 		body = root.find('body')
 		for div in body.findall('div'):
@@ -346,7 +347,7 @@ class cppcheck(Task.Task):
 		for div in page.findall('div'):
 			if div.get('id') == 'header':
 				h1 = div.find('h1')
-				h1.text = 'cppcheck report - %s' % name
+				h1.text = f'cppcheck report - {name}'
 			if div.get('id') == 'content':
 				content = div
 				self._create_html_table(content, files)
@@ -355,11 +356,11 @@ class cppcheck(Task.Task):
 				if self.env.CPPCHECK_SINGLE_HTML:
 					indexlink.attrib['href'] = 'index.html'
 				else:
-					indexlink.attrib['href'] = 'index-%s.html' % name
+					indexlink.attrib['href'] = f'index-{name}.html'
 
 		s = ElementTree.tostring(root, method='html').decode('us-ascii')
 		s = CCPCHECK_HTML_TYPE + s
-		index_html_name = 'cppcheck/index-%s.html' % name
+		index_html_name = f'cppcheck/index-{name}.html'
 		if self.env.CPPCHECK_SINGLE_HTML:
 			index_html_name = 'cppcheck/index.html'
 		node = self.generator.path.get_bld().find_or_declare(index_html_name)
@@ -376,13 +377,13 @@ class cppcheck(Task.Task):
 
 			errors = sorted(val['errors'], key=lambda e: int(e['line']) if 'line' in e else sys.maxint)
 			for e in errors:
-				if not 'line' in e:
+				if 'line' not in e:
 					s = '<tr><td></td><td>%s</td><td>%s</td><td>%s</td></tr>\n' % (e['id'], e['severity'], e['msg'])
 				else:
 					attr = ''
 					if e['severity'] == 'error':
 						attr = 'class="error"'
-					s = '<tr><td><a href="%s#line-%s">%s</a></td>' % (f, e['line'], e['line'])
+					s = f"""<tr><td><a href="{f}#line-{e['line']}">{e['line']}</a></td>"""
 					s+= '<td>%s</td><td>%s</td><td %s>%s</td></tr>\n' % (e['id'], e['severity'], attr, e['msg'])
 				row = ElementTree.fromstring(s)
 				table.append(row)

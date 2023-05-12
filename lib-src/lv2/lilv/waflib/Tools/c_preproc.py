@@ -24,6 +24,7 @@ It only works with gcc >= 4.4 though.
 
 A dumb preprocessor is also available in the tool *c_dumbpreproc*
 """
+
 # TODO: more varargs, pragma once
 
 import re, string, traceback
@@ -90,7 +91,7 @@ re_nl = re.compile('\\\\\r*\n', re.MULTILINE)
 re_cpp = re.compile(r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"', re.DOTALL | re.MULTILINE )
 """Filter C/C++ comments"""
 
-trig_def = [('??'+a, b) for a, b in zip("=-/!'()<>", r'#~\|^[]{}')]
+trig_def = [(f'??{a}', b) for a, b in zip("=-/!'()<>", r'#~\|^[]{}')]
 """Trigraph definitions"""
 
 chr_esc = {'0':0, 'a':7, 'b':8, 't':9, 'n':10, 'f':11, 'v':12, 'r':13, '\\':92, "'":39}
@@ -122,7 +123,12 @@ exp_types = [
 ]
 """Expression types"""
 
-re_clexer = re.compile('|'.join(["(?P<%s>%s)" % (name, part) for name, part in zip(tok_types, exp_types)]), re.M)
+re_clexer = re.compile(
+	'|'.join(
+		[f"(?P<{name}>{part})" for name, part in zip(tok_types, exp_types)]
+	),
+	re.M,
+)
 """Match expressions into tokens"""
 
 accepted  = 'a'
@@ -140,9 +146,7 @@ skipped   = 's'
 def repl(m):
 	"""Replace function used with :py:attr:`waflib.Tools.c_preproc.re_cpp`"""
 	s = m.group()
-	if s[0] == '/':
-		return ' '
-	return s
+	return ' ' if s[0] == '/' else s
 
 prec = {}
 """
@@ -181,46 +185,45 @@ def reduce_nums(val_1, val_2, val_op):
 
 	d = val_op
 	if d == '%':
-		c = a % b
+		return a % b
 	elif d=='+':
-		c = a + b
+		return a + b
 	elif d=='-':
-		c = a - b
+		return a - b
 	elif d=='*':
-		c = a * b
+		return a * b
 	elif d=='/':
-		c = a / b
+		return a / b
 	elif d=='^':
-		c = a ^ b
+		return a ^ b
 	elif d=='==':
-		c = int(a == b)
-	elif d=='|'  or d == 'bitor':
-		c = a | b
-	elif d=='||' or d == 'or' :
-		c = int(a or b)
-	elif d=='&'  or d == 'bitand':
-		c = a & b
-	elif d=='&&' or d == 'and':
-		c = int(a and b)
-	elif d=='!=' or d == 'not_eq':
-		c = int(a != b)
-	elif d=='^'  or d == 'xor':
-		c = int(a^b)
+		return int(a == b)
+	elif d in ['|', 'bitor']:
+		return a | b
+	elif d in ['||', 'or']:
+		return int(a or b)
+	elif d in ['&', 'bitand']:
+		return a & b
+	elif d in ['&&', 'and']:
+		return int(a and b)
+	elif d in ['!=', 'not_eq']:
+		return int(a != b)
+	elif d == 'xor':
+		return int(a^b)
 	elif d=='<=':
-		c = int(a <= b)
+		return int(a <= b)
 	elif d=='<':
-		c = int(a < b)
+		return int(a < b)
 	elif d=='>':
-		c = int(a > b)
+		return int(a > b)
 	elif d=='>=':
-		c = int(a >= b)
+		return int(a >= b)
 	elif d=='<<':
-		c = a << b
+		return a << b
 	elif d=='>>':
-		c = a >> b
+		return a >> b
 	else:
-		c = 0
-	return c
+		return 0
 
 def get_num(lst):
 	"""
@@ -316,11 +319,7 @@ def get_term(lst):
 			else:
 				raise PreprocError('rparen expected %r' % lst)
 
-			if int(num):
-				return get_term(lst[1:i])
-			else:
-				return get_term(lst[i+1:])
-
+			return get_term(lst[1:i]) if int(num) else get_term(lst[i+1:])
 		else:
 			num2, lst = get_num(lst[1:])
 
@@ -384,7 +383,7 @@ def paste_tokens(t1, t2):
 	p1 = None
 	if t1[0] == OP and t2[0] == OP:
 		p1 = OP
-	elif t1[0] == IDENT and (t2[0] == IDENT or t2[0] == NUM):
+	elif t1[0] == IDENT and t2[0] in [IDENT, NUM]:
 		p1 = IDENT
 	elif t1[0] == NUM and t2[0] == NUM:
 		p1 = NUM
@@ -415,10 +414,7 @@ def reduce_tokens(lst, defs, ban=[]):
 			if i < len(lst):
 				(p2, v2) = lst[i]
 				if p2 == IDENT:
-					if v2 in defs:
-						lst[i] = (NUM, 1)
-					else:
-						lst[i] = (NUM, 0)
+					lst[i] = (NUM, 1) if v2 in defs else (NUM, 0)
 				elif p2 == OP and v2 == '(':
 					del lst[i]
 					(p2, v2) = lst[i]
@@ -438,9 +434,9 @@ def reduce_tokens(lst, defs, ban=[]):
 			macro_def = defs[v]
 			to_add = macro_def[1]
 
+			# macro without arguments
+			del lst[i]
 			if isinstance(macro_def[0], list):
-				# macro without arguments
-				del lst[i]
 				accu = to_add[:]
 				reduce_tokens(accu, defs, ban+[v])
 				for tmp in accu:
@@ -450,8 +446,6 @@ def reduce_tokens(lst, defs, ban=[]):
 				# collect the arguments for the funcall
 
 				args = []
-				del lst[i]
-
 				if i >= len(lst):
 					raise PreprocError('expected ( after %r (got nothing)' % v)
 
@@ -514,9 +508,7 @@ def reduce_tokens(lst, defs, ban=[]):
 							t1 = accu[-1]
 
 							if to_add[j+1][0] == IDENT and to_add[j+1][1] in arg_table:
-								toks = args[arg_table[to_add[j+1][1]]]
-
-								if toks:
+								if toks := args[arg_table[to_add[j + 1][1]]]:
 									accu[-1] = paste_tokens(t1, toks[0]) #(IDENT, accu[-1][1] + toks[0][1])
 									accu.extend(toks[1:])
 								else:
@@ -583,10 +575,9 @@ def eval_macro(lst, defs):
 	if not lst:
 		raise PreprocError('missing tokens to evaluate')
 
-	if lst:
-		p, v = lst[0]
-		if p == IDENT and v not in defs:
-			raise PreprocError('missing macro %r' % lst)
+	p, v = lst[0]
+	if p == IDENT and v not in defs:
+		raise PreprocError('missing macro %r' % lst)
 
 	p, v = reduce_eval(lst)
 	return int(v) != 0

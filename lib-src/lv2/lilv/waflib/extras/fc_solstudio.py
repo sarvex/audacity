@@ -31,8 +31,9 @@ def solstudio_flags(conf):
 @conf
 def solstudio_modifier_platform(conf):
 	dest_os = conf.env['DEST_OS'] or Utils.unversioned_sys_platform()
-	solstudio_modifier_func = getattr(conf, 'solstudio_modifier_' + dest_os, None)
-	if solstudio_modifier_func:
+	if solstudio_modifier_func := getattr(
+		conf, f'solstudio_modifier_{dest_os}', None
+	):
 		solstudio_modifier_func()
 
 @conf
@@ -43,10 +44,7 @@ def get_solstudio_version(conf, fc):
 	cmd = fc + ['-V']
 
 	out, err = fc_config.getoutput(conf,cmd,stdin=False)
-	if out:
-		match = version_re(out)
-	else:
-		match = version_re(err)
+	match = version_re(out) if out else version_re(err)
 	if not match:
 		conf.fatal('Could not determine the Sun Studio Fortran version.')
 	k = match.groupdict()

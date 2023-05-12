@@ -53,17 +53,14 @@ def bibunitscan(self):
 
 	code = node.read()
 	for match in re_bibunit.finditer(code):
-		path = match.group('file')
-		if path:
+		if path := match.group('file'):
 			found = None
 			for k in ('', '.bib'):
 				# add another loop for the tex include paths?
 				Logs.debug('tex: trying %s%s', path, k)
-				fi = node.parent.find_resource(path + k)
-				if fi:
+				if fi := node.parent.find_resource(path + k):
 					found = True
 					nodes.append(fi)
-					# no break
 			if not found:
 				Logs.debug('tex: could not find %s', path)
 
@@ -254,16 +251,18 @@ class tex(Task.Task):
 			if g_bibtex_re.findall(ct):
 				self.info('calling bibtex')
 
-				self.env.env = {}
-				self.env.env.update(os.environ)
-				self.env.env.update({'BIBINPUTS': self.texinputs(), 'BSTINPUTS': self.texinputs()})
+				self.env.env = os.environ | {
+					'BIBINPUTS': self.texinputs(),
+					'BSTINPUTS': self.texinputs(),
+				}
 				self.env.SRCFILE = aux_node.name[:-4]
 				self.check_status('error when calling bibtex', self.bibtex_fun())
 
 		for node in getattr(self, 'multibibs', []):
-			self.env.env = {}
-			self.env.env.update(os.environ)
-			self.env.env.update({'BIBINPUTS': self.texinputs(), 'BSTINPUTS': self.texinputs()})
+			self.env.env = os.environ | {
+				'BIBINPUTS': self.texinputs(),
+				'BSTINPUTS': self.texinputs(),
+			}
 			self.env.SRCFILE = node.name[:-4]
 			self.check_status('error when calling bibtex', self.bibtex_fun())
 
@@ -278,7 +277,7 @@ class tex(Task.Task):
 			Logs.error('error bibunitscan')
 		else:
 			if bibunits:
-				fn  = ['bu' + str(i) for i in range(1, len(bibunits) + 1)]
+				fn = [f'bu{str(i)}' for i in range(1, len(bibunits) + 1)]
 				if fn:
 					self.info('calling bibtex on bibunits')
 
@@ -303,7 +302,9 @@ class tex(Task.Task):
 
 			self.env.SRCFILE = self.idx_node.name
 			self.env.env = {}
-			self.check_status('error when calling makeindex %s' % idx_path, self.makeindex_fun())
+			self.check_status(
+				f'error when calling makeindex {idx_path}', self.makeindex_fun()
+			)
 
 	def bibtopic(self):
 		"""
@@ -332,7 +333,9 @@ class tex(Task.Task):
 					raise Errors.WafError("The program 'makeglossaries' is missing!")
 				Logs.warn('calling makeglossaries')
 				self.env.SRCFILE = base
-				self.check_status('error when calling makeglossaries %s' % base, self.makeglossaries_fun())
+				self.check_status(
+					f'error when calling makeglossaries {base}', self.makeglossaries_fun()
+				)
 				return
 
 	def texinputs(self):
@@ -377,7 +380,7 @@ class tex(Task.Task):
 		self.makeindex()
 		self.makeglossaries()
 
-		for i in range(10):
+		for _ in range(10):
 			# There is no need to call latex again if the .aux hash value has not changed
 			prev_hash = cur_hash
 			cur_hash = self.hash_aux_nodes()
@@ -409,9 +412,8 @@ class tex(Task.Task):
 		"""
 		Runs the TeX compiler once
 		"""
-		self.env.env = {}
-		self.env.env.update(os.environ)
-		self.env.env.update({'TEXINPUTS': self.texinputs()})
+		self.env.env = {} | os.environ
+		self.env.env['TEXINPUTS'] = self.texinputs()
 		self.env.SRCFILE = self.inputs[0].abspath()
 		self.check_status('error when calling latex', self.texfun())
 
@@ -452,7 +454,7 @@ def apply_tex(self):
 	Creates :py:class:`waflib.Tools.tex.tex` objects, and
 	dvips/dvipdf/pdf2ps tasks if necessary (outs='ps', etc).
 	"""
-	if not getattr(self, 'type', None) in ('latex', 'pdflatex', 'xelatex'):
+	if getattr(self, 'type', None) not in ('latex', 'pdflatex', 'xelatex'):
 		self.type = 'pdflatex'
 
 	outs = Utils.to_list(getattr(self, 'outs', []))
@@ -475,7 +477,7 @@ def apply_tex(self):
 				n = self.path.find_resource(dep)
 				if not n:
 					self.bld.fatal('Could not find %r for %r' % (dep, self))
-				if not n in deps_lst:
+				if n not in deps_lst:
 					deps_lst.append(n)
 			elif isinstance(dep, Node.Node):
 				deps_lst.append(dep)
@@ -493,7 +495,7 @@ def apply_tex(self):
 		# add the manual dependencies
 		if deps_lst:
 			for n in deps_lst:
-				if not n in task.dep_nodes:
+				if n not in task.dep_nodes:
 					task.dep_nodes.append(n)
 
 		# texinputs is a nasty beast
@@ -509,8 +511,7 @@ def apply_tex(self):
 			for x in lst:
 				if x:
 					if os.path.isabs(x):
-						p = self.bld.root.find_node(x)
-						if p:
+						if p := self.bld.root.find_node(x):
 							task.texinputs_nodes.append(p)
 						else:
 							Logs.error('Invalid TEXINPUTS folder %s', x)

@@ -13,6 +13,7 @@ def options(opt):
 $ waf configure eclipse
 """
 
+
 import sys, os
 from waflib import Utils, Logs, Context, Build, TaskGen, Scripting, Errors, Node
 from xml.dom.minidom import Document
@@ -20,9 +21,9 @@ from xml.dom.minidom import Document
 STANDARD_INCLUDES = [ '/usr/local/include', '/usr/include' ]
 
 oe_cdt = 'org.eclipse.cdt'
-cdt_mk = oe_cdt + '.make.core'
-cdt_core = oe_cdt + '.core'
-cdt_bld = oe_cdt + '.build.core'
+cdt_mk = f'{oe_cdt}.make.core'
+cdt_core = f'{oe_cdt}.core'
+cdt_bld = f'{oe_cdt}.build.core'
 extbuilder_dir = '.externalToolBuilders'
 extbuilder_name = 'Waf_Builder.launch'
 
@@ -62,18 +63,14 @@ class eclipse(Build.BuildContext):
 		javalibpath = []
 		includes = STANDARD_INCLUDES
 		if sys.platform != 'win32':
-			cc = self.env.CC or self.env.CXX
-			if cc:
+			if cc := self.env.CC or self.env.CXX:
 				cmd = cc + ['-xc++', '-E', '-Wp,-v', '-']
 				try:
 					gccout = self.cmd_and_log(cmd, output=Context.STDERR, quiet=Context.BOTH, input='\n'.encode()).splitlines()
 				except Errors.WafError:
 					pass
 				else:
-					includes = []
-					for ipath in gccout:
-						if ipath.startswith(' /'):
-							includes.append(ipath[1:])
+					includes = [ipath[1:] for ipath in gccout if ipath.startswith(' /')]
 			cpppath += includes
 		Logs.warn('Generating Eclipse CDT project files')
 
@@ -99,23 +96,21 @@ class eclipse(Build.BuildContext):
 				# This may also contain generated files (ie. protoc) that get picked from build
 				if 'javac' in tg.features:
 					java_src = tg.path.relpath()
-					java_srcdir = getattr(tg.javac_task, 'srcdir', None)
-					if java_srcdir:
+					if java_srcdir := getattr(tg.javac_task, 'srcdir', None):
 						if isinstance(java_srcdir, Node.Node):
 							java_srcdir = [java_srcdir]
 						for x in Utils.to_list(java_srcdir):
 							x = x.path_from(self.root.make_node(self.top_dir))
 							if x not in javasrcpath:
 								javasrcpath.append(x)
-					else:
-						if java_src not in javasrcpath:
-							javasrcpath.append(java_src)
+					elif java_src not in javasrcpath:
+						javasrcpath.append(java_src)
 					hasjava = True
 
 					# Check if there are external dependencies and add them as external jar so they will be resolved by Eclipse
 					usedlibs=getattr(tg, 'use', [])
 					for x in Utils.to_list(usedlibs):
-						for cl in Utils.to_list(tg.env['CLASSPATH_'+x]):
+						for cl in Utils.to_list(tg.env[f'CLASSPATH_{x}']):
 							if cl not in javalibpath:
 								javalibpath.append(cl)
 
@@ -170,20 +165,22 @@ class eclipse(Build.BuildContext):
 
 		# If CDT is present, instruct this one to call waf as it is more flexible (separate build/clean ...)
 		if hasc:
-			self.add(doc, buildCommand, 'name', oe_cdt + '.managedbuilder.core.genmakebuilder')
+			self.add(
+				doc, buildCommand, 'name', f'{oe_cdt}.managedbuilder.core.genmakebuilder'
+			)
 			# the default make-style targets are overwritten by the .cproject values
 			dictionaries = {
-					cdt_mk + '.contents': cdt_mk + '.activeConfigSettings',
-					cdt_mk + '.enableAutoBuild': 'false',
-					cdt_mk + '.enableCleanBuild': 'true',
-					cdt_mk + '.enableFullBuild': 'true',
-					}
+				f'{cdt_mk}.contents': f'{cdt_mk}.activeConfigSettings',
+				f'{cdt_mk}.enableAutoBuild': 'false',
+				f'{cdt_mk}.enableCleanBuild': 'true',
+				f'{cdt_mk}.enableFullBuild': 'true',
+			}
 		else:
 			# Otherwise for Java/Python an external builder tool is created that will call waf build
 			self.add(doc, buildCommand, 'name', 'org.eclipse.ui.externaltools.ExternalToolBuilder')
 			dictionaries = {
-					'LaunchConfigHandle': '<project>/%s/%s'%(extbuilder_dir, extbuilder_name),
-					}
+				'LaunchConfigHandle': f'<project>/{extbuilder_dir}/{extbuilder_name}'
+			}
 			# The definition is in a separate directory XML file
 			try:
 				os.mkdir(extbuilder_dir)
@@ -202,7 +199,9 @@ class eclipse(Build.BuildContext):
 			self.add(doc, launchConfiguration, 'stringAttribute', {'key': 'org.eclipse.ui.externaltools.ATTR_WORKING_DIRECTORY', 'value': '${project_loc}'})
 			builder.appendChild(launchConfiguration)
 			# And write the XML to the file references before
-			self.write_conf_to_xml('%s%s%s'%(extbuilder_dir, os.path.sep, extbuilder_name), builder)
+			self.write_conf_to_xml(
+				f'{extbuilder_dir}{os.path.sep}{extbuilder_name}', builder
+			)
 
 
 		for k, v in dictionaries.items():
@@ -218,7 +217,7 @@ class eclipse(Build.BuildContext):
 				core.cnature
 			""".split()
 			for n in nature_list:
-				self.add(doc, natures, 'nature', oe_cdt + '.' + n)
+				self.add(doc, natures, 'nature', f'{oe_cdt}.{n}')
 
 		if haspython:
 			self.add(doc, natures, 'nature', 'org.python.pydev.pythonNature')
@@ -231,17 +230,24 @@ class eclipse(Build.BuildContext):
 	def impl_create_cproject(self, executable, waf_executable, appname, workspace_includes, cpppath, source_dirs=[]):
 		doc = Document()
 		doc.appendChild(doc.createProcessingInstruction('fileVersion', '4.0.0'))
-		cconf_id = cdt_core + '.default.config.1'
+		cconf_id = f'{cdt_core}.default.config.1'
 		cproject = doc.createElement('cproject')
-		storageModule = self.add(doc, cproject, 'storageModule',
-				{'moduleId': cdt_core + '.settings'})
+		storageModule = self.add(
+			doc, cproject, 'storageModule', {'moduleId': f'{cdt_core}.settings'}
+		)
 		cconf = self.add(doc, storageModule, 'cconfiguration', {'id':cconf_id})
 
-		storageModule = self.add(doc, cconf, 'storageModule',
-				{'buildSystemId': oe_cdt + '.managedbuilder.core.configurationDataProvider',
-				 'id': cconf_id,
-				 'moduleId': cdt_core + '.settings',
-				 'name': 'Default'})
+		storageModule = self.add(
+			doc,
+			cconf,
+			'storageModule',
+			{
+				'buildSystemId': f'{oe_cdt}.managedbuilder.core.configurationDataProvider',
+				'id': cconf_id,
+				'moduleId': f'{cdt_core}.settings',
+				'name': 'Default',
+			},
+		)
 
 		self.add(doc, storageModule, 'externalSettings')
 
@@ -253,68 +259,131 @@ class eclipse(Build.BuildContext):
 			GASErrorParser
 			GLDErrorParser
 		""".split()
-		self.add(doc, extensions, 'extension', {'id': cdt_core + '.ELF', 'point':cdt_core + '.BinaryParser'})
+		self.add(
+			doc,
+			extensions,
+			'extension',
+			{'id': f'{cdt_core}.ELF', 'point': f'{cdt_core}.BinaryParser'},
+		)
 		for e in extension_list:
-			self.add(doc, extensions, 'extension', {'id': cdt_core + '.' + e, 'point':cdt_core + '.ErrorParser'})
+			self.add(
+				doc,
+				extensions,
+				'extension',
+				{'id': f'{cdt_core}.{e}', 'point': f'{cdt_core}.ErrorParser'},
+			)
 
 		storageModule = self.add(doc, cconf, 'storageModule',
 				{'moduleId': 'cdtBuildSystem', 'version': '4.0.0'})
-		config = self.add(doc, storageModule, 'configuration',
-					{'artifactName': appname,
-					 'id': cconf_id,
-					 'name': 'Default',
-					 'parent': cdt_bld + '.prefbase.cfg'})
-		folderInfo = self.add(doc, config, 'folderInfo',
-							{'id': cconf_id+'.', 'name': '/', 'resourcePath': ''})
+		config = self.add(
+			doc,
+			storageModule,
+			'configuration',
+			{
+				'artifactName': appname,
+				'id': cconf_id,
+				'name': 'Default',
+				'parent': f'{cdt_bld}.prefbase.cfg',
+			},
+		)
+		folderInfo = self.add(
+			doc,
+			config,
+			'folderInfo',
+			{'id': f'{cconf_id}.', 'name': '/', 'resourcePath': ''},
+		)
 
-		toolChain = self.add(doc, folderInfo, 'toolChain',
-				{'id': cdt_bld + '.prefbase.toolchain.1',
-				 'name': 'No ToolChain',
-				 'resourceTypeBasedDiscovery': 'false',
-				 'superClass': cdt_bld + '.prefbase.toolchain'})
+		toolChain = self.add(
+			doc,
+			folderInfo,
+			'toolChain',
+			{
+				'id': f'{cdt_bld}.prefbase.toolchain.1',
+				'name': 'No ToolChain',
+				'resourceTypeBasedDiscovery': 'false',
+				'superClass': f'{cdt_bld}.prefbase.toolchain',
+			},
+		)
 
-		self.add(doc, toolChain, 'targetPlatform', {'binaryParser': 'org.eclipse.cdt.core.ELF', 'id': cdt_bld + '.prefbase.toolchain.1', 'name': ''})
+		self.add(
+			doc,
+			toolChain,
+			'targetPlatform',
+			{
+				'binaryParser': 'org.eclipse.cdt.core.ELF',
+				'id': f'{cdt_bld}.prefbase.toolchain.1',
+				'name': '',
+			},
+		)
 
-		waf_build = '"%s" %s'%(waf_executable, eclipse.fun)
-		waf_clean = '"%s" clean'%(waf_executable)
-		self.add(doc, toolChain, 'builder',
-					{'autoBuildTarget': waf_build,
-					 'command': executable,
-					 'enableAutoBuild': 'false',
-					 'cleanBuildTarget': waf_clean,
-					 'enableIncrementalBuild': 'true',
-					 'id': cdt_bld + '.settings.default.builder.1',
-					 'incrementalBuildTarget': waf_build,
-					 'managedBuildOn': 'false',
-					 'name': 'Gnu Make Builder',
-					 'superClass': cdt_bld + '.settings.default.builder'})
+		waf_build = f'"{waf_executable}" {eclipse.fun}'
+		waf_clean = f'"{waf_executable}" clean'
+		self.add(
+			doc,
+			toolChain,
+			'builder',
+			{
+				'autoBuildTarget': waf_build,
+				'command': executable,
+				'enableAutoBuild': 'false',
+				'cleanBuildTarget': waf_clean,
+				'enableIncrementalBuild': 'true',
+				'id': f'{cdt_bld}.settings.default.builder.1',
+				'incrementalBuildTarget': waf_build,
+				'managedBuildOn': 'false',
+				'name': 'Gnu Make Builder',
+				'superClass': f'{cdt_bld}.settings.default.builder',
+			},
+		)
 
 		tool_index = 1;
 		for tool_name in ("Assembly", "GNU C++", "GNU C"):
-			tool = self.add(doc, toolChain, 'tool',
-					{'id': cdt_bld + '.settings.holder.' + str(tool_index),
-					 'name': tool_name,
-					 'superClass': cdt_bld + '.settings.holder'})
+			tool = self.add(
+				doc,
+				toolChain,
+				'tool',
+				{
+					'id': f'{cdt_bld}.settings.holder.{str(tool_index)}',
+					'name': tool_name,
+					'superClass': f'{cdt_bld}.settings.holder',
+				},
+			)
 			if cpppath or workspace_includes:
-				incpaths = cdt_bld + '.settings.holder.incpaths'
-				option = self.add(doc, tool, 'option',
-						{'id': incpaths + '.' +  str(tool_index),
-						 'name': 'Include Paths',
-						 'superClass': incpaths,
-						 'valueType': 'includePath'})
+				incpaths = f'{cdt_bld}.settings.holder.incpaths'
+				option = self.add(
+					doc,
+					tool,
+					'option',
+					{
+						'id': f'{incpaths}.{str(tool_index)}',
+						'name': 'Include Paths',
+						'superClass': incpaths,
+						'valueType': 'includePath',
+					},
+				)
 				for i in workspace_includes:
 					self.add(doc, option, 'listOptionValue',
 								{'builtIn': 'false',
 								'value': '"${workspace_loc:/%s/%s}"'%(appname, i)})
 				for i in cpppath:
-					self.add(doc, option, 'listOptionValue',
-								{'builtIn': 'false',
-								'value': '"%s"'%(i)})
-			if tool_name == "GNU C++" or tool_name == "GNU C":
-				self.add(doc,tool,'inputType',{ 'id':'org.eclipse.cdt.build.core.settings.holder.inType.' + str(tool_index), \
-					'languageId':'org.eclipse.cdt.core.gcc' if tool_name == "GNU C" else 'org.eclipse.cdt.core.g++','languageName':tool_name, \
-					'sourceContentType':'org.eclipse.cdt.core.cSource,org.eclipse.cdt.core.cHeader', \
-					'superClass':'org.eclipse.cdt.build.core.settings.holder.inType' })
+					self.add(
+						doc, option, 'listOptionValue', {'builtIn': 'false', 'value': f'"{i}"'}
+					)
+			if tool_name in ["GNU C++", "GNU C"]:
+				self.add(
+					doc,
+					tool,
+					'inputType',
+					{
+						'id': f'org.eclipse.cdt.build.core.settings.holder.inType.{str(tool_index)}',
+						'languageId': 'org.eclipse.cdt.core.gcc'
+						if tool_name == "GNU C"
+						else 'org.eclipse.cdt.core.g++',
+						'languageName': tool_name,
+						'sourceContentType': 'org.eclipse.cdt.core.cSource,org.eclipse.cdt.core.cHeader',
+						'superClass': 'org.eclipse.cdt.build.core.settings.holder.inType',
+					},
+				)
 			tool_index += 1
 
 		if source_dirs:
@@ -331,12 +400,15 @@ class eclipse(Build.BuildContext):
 							'kind': 'sourcePath',
 							'name': i})
 
-		storageModule = self.add(doc, cconf, 'storageModule',
-							{'moduleId': cdt_mk + '.buildtargets'})
+		storageModule = self.add(
+			doc, cconf, 'storageModule', {'moduleId': f'{cdt_mk}.buildtargets'}
+		)
 		buildTargets = self.add(doc, storageModule, 'buildTargets')
 		def addTargetWrap(name, runAll):
-			return self.addTarget(doc, buildTargets, executable, name,
-								'"%s" %s'%(waf_executable, name), runAll)
+			return self.addTarget(
+				doc, buildTargets, executable, name, f'"{waf_executable}" {name}', runAll
+			)
+
 		addTargetWrap('configure', True)
 		addTargetWrap('dist', False)
 		addTargetWrap('install', False)
@@ -346,7 +418,12 @@ class eclipse(Build.BuildContext):
 							{'moduleId': 'cdtBuildSystem',
 							 'version': '4.0.0'})
 
-		self.add(doc, storageModule, 'project', {'id': '%s.null.1'%appname, 'name': appname})
+		self.add(
+			doc,
+			storageModule,
+			'project',
+			{'id': f'{appname}.null.1', 'name': appname},
+		)
 
 		doc.appendChild(cproject)
 		return doc
@@ -362,9 +439,7 @@ class eclipse(Build.BuildContext):
 		prop.setAttribute('name', 'org.python.pydev.PYTHON_PROJECT_VERSION')
 		prop = self.add(doc, pydevproject, 'pydev_property', 'Default')
 		prop.setAttribute('name', 'org.python.pydev.PYTHON_PROJECT_INTERPRETER')
-		# add waf's paths
-		wafadmin = [p for p in system_path if p.find('wafadmin') != -1]
-		if wafadmin:
+		if wafadmin := [p for p in system_path if p.find('wafadmin') != -1]:
 			prop = self.add(doc, pydevproject, 'pydev_pathproperty',
 					{'name':'org.python.pydev.PROJECT_EXTERNAL_SOURCE_PATH'})
 			for i in wafadmin:
@@ -404,10 +479,16 @@ class eclipse(Build.BuildContext):
 		return dictionary
 
 	def addTarget(self, doc, buildTargets, executable, name, buildTarget, runAllBuilders=True):
-		target = self.add(doc, buildTargets, 'target',
-						{'name': name,
-						 'path': '',
-						 'targetID': oe_cdt + '.build.MakeTargetBuilder'})
+		target = self.add(
+			doc,
+			buildTargets,
+			'target',
+			{
+				'name': name,
+				'path': '',
+				'targetID': f'{oe_cdt}.build.MakeTargetBuilder',
+			},
+		)
 		self.add(doc, target, 'buildCommand', executable)
 		self.add(doc, target, 'buildArguments', None)
 		self.add(doc, target, 'buildTarget', buildTarget)
@@ -417,10 +498,10 @@ class eclipse(Build.BuildContext):
 
 	def add(self, doc, parent, tag, value = None):
 		el = doc.createElement(tag)
-		if (value):
+		if value:
 			if type(value) == type(str()):
 				el.appendChild(doc.createTextNode(value))
-			elif type(value) == type(dict()):
+			elif type(value) == type({}):
 				self.setAttributes(el, value)
 		parent.appendChild(el)
 		return el

@@ -146,15 +146,15 @@ class bld_proxy(object):
 				x = Build.cPickle.dumps(data, Build.PROTOCOL)
 
 		Logs.debug('rev_use: storing %s', db)
-		Utils.writef(db + '.tmp', x, m='wb')
+		Utils.writef(f'{db}.tmp', x, m='wb')
 		try:
 			st = os.stat(db)
 			os.remove(db)
 			if not Utils.is_win32:
-				os.chown(db + '.tmp', st.st_uid, st.st_gid)
+				os.chown(f'{db}.tmp', st.st_uid, st.st_gid)
 		except (AttributeError, OSError):
 			pass
-		os.rename(db + '.tmp', db)
+		os.rename(f'{db}.tmp', db)
 
 class bld(Build.BuildContext):
 	def __init__(self, **kw):
@@ -205,10 +205,7 @@ class bld(Build.BuildContext):
 				for tsk in tg.tasks:
 					if tsk.hasrun == Task.SUCCESS:
 						do_cache = True
-						pass
-					elif tsk.hasrun == Task.SKIPPED:
-						pass
-					else:
+					elif tsk.hasrun != Task.SKIPPED:
 						# one failed task, clear the cache for this tg
 						try:
 							del f_deps[(tg.path.abspath(), tg.idx)]
@@ -246,8 +243,7 @@ class bld(Build.BuildContext):
 						# TODO do last/when loading the tgs?
 						lst = []
 						for k in ('wscript', 'wscript_build'):
-							n = tg.path.find_node(k)
-							if n:
+							if n := tg.path.find_node(k):
 								n.get_bld_sig()
 								lst.append(n.abspath())
 
@@ -262,7 +258,7 @@ class bld(Build.BuildContext):
 		if do_store:
 			dbfn = os.path.join(self.variant_dir, TSTAMP_DB)
 			Logs.debug('rev_use: storing %s', dbfn)
-			dbfn_tmp = dbfn + '.tmp'
+			dbfn_tmp = f'{dbfn}.tmp'
 			x = Build.cPickle.dumps([self.f_tstamps, f_deps], Build.PROTOCOL)
 			Utils.writef(dbfn_tmp, x, m='wb')
 			os.rename(dbfn_tmp, dbfn)

@@ -97,22 +97,22 @@ class store_context(type):
 	Context classes must provide an attribute 'cmd' representing the command name, and a function
 	attribute 'fun' representing the function name that the command uses.
 	"""
-	def __init__(cls, name, bases, dct):
-		super(store_context, cls).__init__(name, bases, dct)
-		name = cls.__name__
+	def __init__(self, name, bases, dct):
+		super(store_context, self).__init__(name, bases, dct)
+		name = self.__name__
 
 		if name in ('ctx', 'Context'):
 			return
 
 		try:
-			cls.cmd
+			self.cmd
 		except AttributeError:
 			raise Errors.WafError('Missing command for the context class %r (cmd)' % name)
 
-		if not getattr(cls, 'fun', None):
-			cls.fun = cls.cmd
+		if not getattr(self, 'fun', None):
+			self.fun = self.cmd
 
-		classes.insert(0, cls)
+		classes.insert(0, self)
 
 ctx = store_context('ctx', (object,), {})
 """Base class for all :py:class:`waflib.Context.Context` classes"""
@@ -192,8 +192,7 @@ class Context(ctx):
 
 		for t in tools:
 			module = load_tool(t, path, with_sys_path=with_sys_path)
-			fun = getattr(module, kw.get('name', self.fun), None)
-			if fun:
+			if fun := getattr(module, kw.get('name', self.fun), None):
 				fun(self)
 
 	def execute(self):
@@ -259,7 +258,7 @@ class Context(ctx):
 				d = os.path.join(self.path.abspath(), d)
 
 			WSCRIPT     = os.path.join(d, WSCRIPT_FILE)
-			WSCRIPT_FUN = WSCRIPT + '_' + (name or self.fun)
+			WSCRIPT_FUN = f'{WSCRIPT}_' + (name or self.fun)
 
 			node = self.root.find_node(WSCRIPT_FUN)
 			if node and (not once or node not in cache):
@@ -293,14 +292,13 @@ class Context(ctx):
 						os.listdir(d)
 					except OSError:
 						raise Errors.WafError('Cannot read the folder %r' % d)
-					raise Errors.WafError('No wscript file in directory %s' % d)
+					raise Errors.WafError(f'No wscript file in directory {d}')
 
 	def log_command(self, cmd, kw):
 		if Logs.verbose:
 			fmt = os.environ.get('WAF_CMD_FORMAT')
-			if fmt == 'string':
-				if not isinstance(cmd, str):
-					cmd = Utils.shell_escape(cmd)
+			if fmt == 'string' and not isinstance(cmd, str):
+				cmd = Utils.shell_escape(cmd)
 			Logs.debug('runner: %r', cmd)
 			Logs.debug('runner_env: kw=%s', kw)
 
@@ -338,13 +336,13 @@ class Context(ctx):
 			kw['stderr'] = subprocess.PIPE
 
 		if Logs.verbose and not kw['shell'] and not Utils.check_exe(cmd[0]):
-			raise Errors.WafError('Program %s not found!' % cmd[0])
+			raise Errors.WafError(f'Program {cmd[0]} not found!')
 
 		cargs = {}
 		if 'timeout' in kw:
 			if sys.hexversion >= 0x3030000:
 				cargs['timeout'] = kw['timeout']
-				if not 'start_new_session' in kw:
+				if 'start_new_session' not in kw:
 					kw['start_new_session'] = True
 			del kw['timeout']
 		if 'input' in kw:
@@ -353,16 +351,15 @@ class Context(ctx):
 				kw['stdin'] = subprocess.PIPE
 			del kw['input']
 
-		if 'cwd' in kw:
-			if not isinstance(kw['cwd'], str):
-				kw['cwd'] = kw['cwd'].abspath()
+		if 'cwd' in kw and not isinstance(kw['cwd'], str):
+			kw['cwd'] = kw['cwd'].abspath()
 
 		encoding = kw.pop('decode_as', default_encoding)
 
 		try:
 			ret, out, err = Utils.run_process(cmd, kw, cargs)
 		except Exception as e:
-			raise Errors.WafError('Execution failure: %s' % str(e), ex=e)
+			raise Errors.WafError(f'Execution failure: {str(e)}', ex=e)
 
 		if out:
 			if not isinstance(out, str):
@@ -375,7 +372,7 @@ class Context(ctx):
 			if not isinstance(err, str):
 				err = err.decode(encoding, errors='replace')
 			if self.logger:
-				self.logger.error('err: %s' % err)
+				self.logger.error(f'err: {err}')
 			else:
 				Logs.info(err, extra={'stream':sys.stderr, 'c1': ''})
 
@@ -423,7 +420,7 @@ class Context(ctx):
 		if 'timeout' in kw:
 			if sys.hexversion >= 0x3030000:
 				cargs['timeout'] = kw['timeout']
-				if not 'start_new_session' in kw:
+				if 'start_new_session' not in kw:
 					kw['start_new_session'] = True
 			del kw['timeout']
 		if 'input' in kw:
@@ -432,16 +429,15 @@ class Context(ctx):
 				kw['stdin'] = subprocess.PIPE
 			del kw['input']
 
-		if 'cwd' in kw:
-			if not isinstance(kw['cwd'], str):
-				kw['cwd'] = kw['cwd'].abspath()
+		if 'cwd' in kw and not isinstance(kw['cwd'], str):
+			kw['cwd'] = kw['cwd'].abspath()
 
 		encoding = kw.pop('decode_as', default_encoding)
 
 		try:
 			ret, out, err = Utils.run_process(cmd, kw, cargs)
 		except Exception as e:
-			raise Errors.WafError('Execution failure: %s' % str(e), ex=e)
+			raise Errors.WafError(f'Execution failure: {str(e)}', ex=e)
 
 		if not isinstance(out, str):
 			out = out.decode(encoding, errors='replace')
@@ -449,9 +445,9 @@ class Context(ctx):
 			err = err.decode(encoding, errors='replace')
 
 		if out and quiet != STDOUT and quiet != BOTH:
-			self.to_log('out: %s' % out)
+			self.to_log(f'out: {out}')
 		if err and quiet != STDERR and quiet != BOTH:
-			self.to_log('err: %s' % err)
+			self.to_log(f'err: {err}')
 
 		if ret:
 			e = Errors.WafError('Command %r returned %r' % (cmd, ret))
@@ -481,7 +477,7 @@ class Context(ctx):
 		:raises: :py:class:`waflib.Errors.ConfigurationError`
 		"""
 		if self.logger:
-			self.logger.info('from %s: %s' % (self.path.abspath(), msg))
+			self.logger.info(f'from {self.path.abspath()}: {msg}')
 		try:
 			logfile = self.logger.handlers[0].baseFilename
 		except AttributeError:
@@ -548,7 +544,7 @@ class Context(ctx):
 
 		color = kw.get('color')
 		if not isinstance(color, str):
-			color = result and 'GREEN' or 'YELLOW'
+			color = 'GREEN' if result else 'YELLOW'
 
 		self.end_msg(result, color, **kw)
 
@@ -574,7 +570,7 @@ class Context(ctx):
 			self.line_just = max(40, len(msg))
 		for x in (self.line_just * '-', msg):
 			self.to_log(x)
-		Logs.pprint('NORMAL', "%s :" % msg.ljust(self.line_just), sep='')
+		Logs.pprint('NORMAL', f"{msg.ljust(self.line_just)} :", sep='')
 
 	def end_msg(self, *k, **kw):
 		"""Prints the end of a 'Checking for' message. See :py:meth:`waflib.Context.Context.msg`"""
@@ -599,11 +595,7 @@ class Context(ctx):
 		try:
 			color = kw['color']
 		except KeyError:
-			if len(k) > 1 and k[1] in Logs.colors_lst:
-				# compatibility waf 1.7
-				color = k[1]
-			else:
-				color = defcolor
+			color = k[1] if len(k) > 1 and k[1] in Logs.colors_lst else defcolor
 		Logs.pprint(color, msg)
 
 	def load_special_tools(self, var, ban=[]):
@@ -621,14 +613,14 @@ class Context(ctx):
 		if os.path.isdir(waf_dir):
 			lst = self.root.find_node(waf_dir).find_node('waflib/extras').ant_glob(var)
 			for x in lst:
-				if not x.name in ban:
+				if x.name not in ban:
 					load_tool(x.name.replace('.py', ''))
 		else:
 			from zipfile import PyZipFile
 			waflibs = PyZipFile(waf_dir)
 			lst = waflibs.namelist()
 			for x in lst:
-				if not re.match('waflib/extras/%s' % var.replace('*', '.*'), var):
+				if not re.match(f"waflib/extras/{var.replace('*', '.*')}", var):
 					continue
 				f = os.path.basename(x)
 				doban = False
@@ -687,11 +679,7 @@ def load_tool(tool, tooldir=None, ctx=None, with_sys_path=True):
 	:type  with_sys_path: boolean
 	:param with_sys_path: whether or not to search the regular sys.path, besides waf_dir and potentially given tooldirs
 	"""
-	if tool == 'java':
-		tool = 'javaw' # jython
-	else:
-		tool = tool.replace('++', 'xx')
-
+	tool = 'javaw' if tool == 'java' else tool.replace('++', 'xx')
 	if not with_sys_path:
 		back_path = sys.path
 		sys.path = []
@@ -708,8 +696,6 @@ def load_tool(tool, tooldir=None, ctx=None, with_sys_path=True):
 				for d in tooldir:
 					sys.path.remove(d)
 			ret = sys.modules[tool]
-			Context.tools[tool] = ret
-			return ret
 		else:
 			if not with_sys_path:
 				sys.path.insert(0, waf_dir)
@@ -729,8 +715,8 @@ def load_tool(tool, tooldir=None, ctx=None, with_sys_path=True):
 				if not with_sys_path:
 					sys.path.remove(waf_dir)
 			ret = sys.modules[x % tool]
-			Context.tools[tool] = ret
-			return ret
+		Context.tools[tool] = ret
+		return ret
 	finally:
 		if not with_sys_path:
 			sys.path += back_path

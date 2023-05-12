@@ -8,11 +8,12 @@ Experimental F# stuff
 FSC="mono /path/to/fsc.exe" waf configure build
 """
 
+
 from waflib import Utils, Task
 from waflib.TaskGen import before_method, after_method, feature
 from waflib.Tools import ccroot, cs
 
-ccroot.USELIB_VARS['fsc'] = set(['CSFLAGS', 'ASSEMBLIES', 'RESOURCES'])
+ccroot.USELIB_VARS['fsc'] = {'CSFLAGS', 'ASSEMBLIES', 'RESOURCES'}
 
 @feature('fs')
 @before_method('process_source')
@@ -28,11 +29,12 @@ def apply_fsc(self):
 
 	bintype = getattr(self, 'type', self.gen.endswith('.dll') and 'library' or 'exe')
 	self.cs_task = tsk = self.create_task('fsc', cs_nodes, self.path.find_or_declare(self.gen))
-	tsk.env.CSTYPE = '/target:%s' % bintype
-	tsk.env.OUT    = '/out:%s' % tsk.outputs[0].abspath()
+	tsk.env.CSTYPE = f'/target:{bintype}'
+	tsk.env.OUT = f'/out:{tsk.outputs[0].abspath()}'
 
-	inst_to = getattr(self, 'install_path', bintype=='exe' and '${BINDIR}' or '${LIBDIR}')
-	if inst_to:
+	if inst_to := getattr(
+		self, 'install_path', bintype == 'exe' and '${BINDIR}' or '${LIBDIR}'
+	):
 		# note: we are making a copy, so the files added to cs_task.outputs won't be installed automatically
 		mod = getattr(self, 'chmod', bintype=='exe' and Utils.O755 or Utils.O644)
 		self.install_task = self.add_install_files(install_to=inst_to, install_from=self.cs_task.outputs[:], chmod=mod)
@@ -59,6 +61,6 @@ def configure(conf):
 	conf.env.RES_ST = '/resource:%s'
 
 	conf.env.FS_NAME = 'fsc'
-	if str(conf.env.FSC).lower().find('fsharpc') > -1:
+	if 'fsharpc' in str(conf.env.FSC).lower():
 		conf.env.FS_NAME = 'mono'
 

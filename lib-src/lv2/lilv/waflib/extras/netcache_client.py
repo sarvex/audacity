@@ -74,7 +74,7 @@ def release_connection(conn, msg='', push=False):
 
 def close_connection(conn, msg=''):
 	if conn:
-		data = '%s,%s' % (BYE, msg)
+		data = f'{BYE},{msg}'
 		try:
 			put_data(conn, data.ljust(HEADER_SIZE))
 		except:
@@ -106,12 +106,10 @@ def read_header(conn):
 			raise ValueError('connection ended when reading a header %r' % buf)
 		buf.append(data)
 		cnt += len(data)
-	if sys.hexversion > 0x3000000:
-		ret = ''.encode('latin-1').join(buf)
-		ret = ret.decode('latin-1')
-	else:
-		ret = ''.join(buf)
-	return ret
+	if sys.hexversion <= 0x3000000:
+		return ''.join(buf)
+	ret = ''.encode('latin-1').join(buf)
+	return ret.decode('latin-1')
 
 def check_cache(conn, ssig):
 	"""
@@ -148,8 +146,8 @@ def check_cache(conn, ssig):
 		all_sigs_in_cache = (time.time(), ret.splitlines())
 		Logs.debug('netcache: server cache has %r entries', len(all_sigs_in_cache[1]))
 
-	if not ssig in all_sigs_in_cache[1]:
-		raise ValueError('no file %s in cache' % ssig)
+	if ssig not in all_sigs_in_cache[1]:
+		raise ValueError(f'no file {ssig} in cache')
 
 class MissingFile(Exception):
 	pass
@@ -164,19 +162,16 @@ def recv_file(conn, ssig, count, p):
 	size = int(data.split(',')[0])
 
 	if size == -1:
-		raise MissingFile('no file %s - %s in cache' % (ssig, count))
+		raise MissingFile(f'no file {ssig} - {count} in cache')
 
-	# get the file, writing immediately
-	# TODO a tmp file would be better
-	f = open(p, 'wb')
-	cnt = 0
-	while cnt < size:
-		data = conn.recv(min(BUF, size-cnt))
-		if not data:
-			raise ValueError('connection ended %r %r' % (cnt, size))
-		f.write(data)
-		cnt += len(data)
-	f.close()
+	with open(p, 'wb') as f:
+		cnt = 0
+		while cnt < size:
+			data = conn.recv(min(BUF, size-cnt))
+			if not data:
+				raise ValueError('connection ended %r %r' % (cnt, size))
+			f.write(data)
+			cnt += len(data)
 
 def sock_send(conn, ssig, cnt, p):
 	#print "pushing %r %r %r" % (ssig, cnt, p)
@@ -208,26 +203,25 @@ def can_retrieve_cache(self):
 	conn = None
 	err = False
 	try:
-		try:
-			conn = get_connection()
-			for node in self.outputs:
-				p = node.abspath()
-				recv_file(conn, ssig, cnt, p)
-				cnt += 1
-		except MissingFile as e:
-			Logs.debug('netcache: file is not in the cache %r', e)
-			err = True
-		except Exception as e:
-			Logs.debug('netcache: could not get the files %r', self.outputs)
-			if Logs.verbose > 1:
-				Logs.debug('netcache: exception %r', e)
-			err = True
+		conn = get_connection()
+		for node in self.outputs:
+			p = node.abspath()
+			recv_file(conn, ssig, cnt, p)
+			cnt += 1
+	except MissingFile as e:
+		Logs.debug('netcache: file is not in the cache %r', e)
+		err = True
+	except Exception as e:
+		Logs.debug('netcache: could not get the files %r', self.outputs)
+		if Logs.verbose > 1:
+			Logs.debug('netcache: exception %r', e)
+		err = True
 
-			# broken connection? remove this one
-			close_connection(conn)
-			conn = None
-		else:
-			Logs.debug('netcache: obtained %r from cache', self.outputs)
+		# broken connection? remove this one
+		close_connection(conn)
+		conn = None
+	else:
+		Logs.debug('netcache: obtained %r from cache', self.outputs)
 
 	finally:
 		release_connection(conn)
@@ -282,7 +276,7 @@ def hash_env_vars(self, env, vars_lst):
 		if not env:
 			return Utils.SIG_NIL
 
-	idx = str(id(env)) + str(vars_lst)
+	idx = id(env) + str(vars_lst)
 	try:
 		cache = self.cache_env
 	except AttributeError:
@@ -328,9 +322,8 @@ def make_cached(cls):
 	def run(self):
 		if getattr(self, 'nocache', False):
 			return m1(self)
-		if self.can_retrieve_cache():
-			return 0
-		return m1(self)
+		return 0 if self.can_retrieve_cache() else m1(self)
+
 	cls.run = run
 
 	m2 = cls.post_run
@@ -345,6 +338,7 @@ def make_cached(cls):
 			for node in self.outputs:
 				os.chmod(node.abspath(), self.chmod)
 		return ret
+
 	cls.post_run = post_run
 
 @conf
@@ -361,26 +355,28 @@ def setup_netcache(ctx, push_addr, pull_addr):
 		make_cached(x)
 
 def build(bld):
-	if not 'NETCACHE' in os.environ and not 'NETCACHE_PULL' in os.environ and not 'NETCACHE_PUSH' in os.environ:
+	if (
+		'NETCACHE' not in os.environ
+		and 'NETCACHE_PULL' not in os.environ
+		and 'NETCACHE_PUSH' not in os.environ
+	):
 		Logs.warn('Setting  NETCACHE_PULL=127.0.0.1:11001 and NETCACHE_PUSH=127.0.0.1:12001')
 		os.environ['NETCACHE_PULL'] = '127.0.0.1:12001'
 		os.environ['NETCACHE_PUSH'] = '127.0.0.1:11001'
 
 	if 'NETCACHE' in os.environ:
-		if not 'NETCACHE_PUSH' in os.environ:
+		if 'NETCACHE_PUSH' not in os.environ:
 			os.environ['NETCACHE_PUSH'] = os.environ['NETCACHE']
-		if not 'NETCACHE_PULL' in os.environ:
+		if 'NETCACHE_PULL' not in os.environ:
 			os.environ['NETCACHE_PULL'] = os.environ['NETCACHE']
 
-	v = os.environ['NETCACHE_PULL']
-	if v:
+	if v := os.environ['NETCACHE_PULL']:
 		h, p = v.split(':')
 		pull_addr = (h, int(p))
 	else:
 		pull_addr = None
 
-	v = os.environ['NETCACHE_PUSH']
-	if v:
+	if v := os.environ['NETCACHE_PUSH']:
 		h, p = v.split(':')
 		push_addr = (h, int(p))
 	else:

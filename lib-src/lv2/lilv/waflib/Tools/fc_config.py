@@ -75,13 +75,13 @@ def check_fc(self, *k, **kw):
 	(this overrides the C defaults in :py:func:`waflib.Tools.c_config.validate_c`)
 	"""
 	kw['compiler'] = 'fc'
-	if not 'compile_mode' in kw:
+	if 'compile_mode' not in kw:
 		kw['compile_mode'] = 'fc'
-	if not 'type' in kw:
+	if 'type' not in kw:
 		kw['type'] = 'fcprogram'
-	if not 'compile_filename' in kw:
+	if 'compile_filename' not in kw:
 		kw['compile_filename'] = 'test.f90'
-	if not 'code' in kw:
+	if 'code' not in kw:
 		kw['code'] = FC_FRAGMENT
 	return self.check(*k, **kw)
 
@@ -167,7 +167,7 @@ def check_fortran_dummy_main(self, *k, **kw):
 				self.end_msg('no')
 			else:
 				self.env.FC_MAIN = main
-				self.end_msg('yes %s' % main)
+				self.end_msg(f'yes {main}')
 			break
 		except self.errors.ConfigurationError:
 			pass
@@ -185,11 +185,11 @@ POSIX_LIB_FLAGS = re.compile(r'-l\S+')
 def is_link_verbose(self, txt):
 	"""Returns True if 'useful' link options can be found in txt"""
 	assert isinstance(txt, str)
-	for line in txt.splitlines():
-		if not GCC_DRIVER_LINE.search(line):
-			if POSIX_STATIC_EXT.search(line) or POSIX_LIB_FLAGS.search(line):
-				return True
-	return False
+	return any(
+		not GCC_DRIVER_LINE.search(line)
+		and (POSIX_STATIC_EXT.search(line) or POSIX_LIB_FLAGS.search(line))
+		for line in txt.splitlines()
+	)
 
 @conf
 def check_fortran_verbose_flag(self, *k, **kw):
@@ -231,10 +231,7 @@ RLINKFLAGS_IGNORED = [re.compile(f) for f in LINKFLAGS_IGNORED]
 
 def _match_ignore(line):
 	"""Returns True if the line should be ignored (Fortran verbose flag test)"""
-	for i in RLINKFLAGS_IGNORED:
-		if i.match(line):
-			return True
-	return False
+	return any(i.match(line) for i in RLINKFLAGS_IGNORED)
 
 def parse_fortran_link(lines):
 	"""Given the output of verbose link of Fortran compiler, this returns a
@@ -264,26 +261,18 @@ def _parse_flink_token(lexer, token, tmp_flags):
 	# step 3
 	if _match_ignore(token):
 		pass
-	# step 4
 	elif token.startswith('-lkernel32') and sys.platform == 'cygwin':
 		tmp_flags.append(token)
-	# step 5
 	elif SPACE_OPTS.match(token):
 		t = lexer.get_token()
 		if t.startswith('P,'):
 			t = t[2:]
 		for opt in t.split(os.pathsep):
-			tmp_flags.append('-L%s' % opt)
-	# step 6
+			tmp_flags.append(f'-L{opt}')
 	elif NOSPACE_OPTS.match(token):
 		tmp_flags.append(token)
-	# step 7
 	elif POSIX_LIB_FLAGS.match(token):
 		tmp_flags.append(token)
-	else:
-		# ignore anything not explicitly taken into account
-		pass
-
 	t = lexer.get_token()
 	return t
 
@@ -324,7 +313,7 @@ def check_fortran_clib(self, autoadd=True, *k, **kw):
 	else:
 		out = self.test_bld.err
 		flags = parse_fortran_link(out.splitlines())
-		self.end_msg('ok (%s)' % ' '.join(flags))
+		self.end_msg(f"ok ({' '.join(flags)})")
 		self.env.LINKFLAGS_CLIB = flags
 		return flags
 	return []
@@ -343,16 +332,12 @@ def getoutput(conf, cmd, stdin=False):
 	try:
 		out, err = conf.cmd_and_log(cmd, env=env, output=0, input=input)
 	except Errors.WafError as e:
-		# An WafError might indicate an error code during the command
-		# execution, in this case we still obtain the stderr and stdout,
-		# which we can use to find the version string.
-		if not (hasattr(e, 'stderr') and hasattr(e, 'stdout')):
+		if not hasattr(e, 'stderr') or not hasattr(e, 'stdout'):
 			raise e
-		else:
-			# Ignore the return code and return the original
-			# stdout and stderr.
-			out = e.stdout
-			err = e.stderr
+		# Ignore the return code and return the original
+		# stdout and stderr.
+		out = e.stdout
+		err = e.stderr
 	except Exception:
 		conf.fatal('could not determine the compiler version %r' % cmd)
 	return (out, err)
@@ -437,7 +422,7 @@ def check_fortran_mangling(self, *k, **kw):
 		except self.errors.ConfigurationError:
 			pass
 		else:
-			self.end_msg("ok ('%s', '%s', '%s-case')" % (u, du, c))
+			self.end_msg(f"ok ('{u}', '{du}', '{c}-case')")
 			self.env.FORTRAN_MANGLING = (u, du, c)
 			break
 	else:
@@ -459,11 +444,11 @@ def detect_openmp(self):
 	for x in ('-fopenmp','-openmp','-mp','-xopenmp','-omp','-qsmp=omp'):
 		try:
 			self.check_fc(
-				msg          = 'Checking for OpenMP flag %s' % x,
-				fragment     = 'program main\n  call omp_get_num_threads()\nend program main',
-				fcflags      = x,
-				linkflags    = x,
-				uselib_store = 'OPENMP'
+				msg=f'Checking for OpenMP flag {x}',
+				fragment='program main\n  call omp_get_num_threads()\nend program main',
+				fcflags=x,
+				linkflags=x,
+				uselib_store='OPENMP',
 			)
 		except self.errors.ConfigurationError:
 			pass

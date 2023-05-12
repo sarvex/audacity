@@ -45,14 +45,11 @@ import os, sys
 import time, datetime
 
 class Programs:
-    def __init__ (self, needs_exe):
-        if needs_exe:
-            extension = ".exe"
-        else:
-            extension = ""
-        self.meta_set_prog = "./sndfile-metadata-set" + extension
-        self.meta_get_prog = "./sndfile-metadata-get" + extension
-        self.make_sine_prog = "../examples/make_sine" + extension
+    def __init__(self, needs_exe):
+        extension = ".exe" if needs_exe else ""
+        self.meta_set_prog = f"./sndfile-metadata-set{extension}"
+        self.meta_get_prog = f"./sndfile-metadata-get{extension}"
+        self.make_sine_prog = f"../examples/make_sine{extension}"
 
     def _run_command (self, should_fail, cmd):
         status, output = commands.getstatusoutput (cmd)
@@ -68,11 +65,11 @@ class Programs:
             sys.exit (1)
         return output
 
-    def meta_set (self, should_fail, args):
-        return self._run_command (should_fail, self.meta_set_prog + " " + args)
+    def meta_set(self, should_fail, args):
+        return self._run_command(should_fail, f"{self.meta_set_prog} {args}")
 
-    def meta_get (self, should_fail, args):
-        return self._run_command (should_fail, self.meta_get_prog + " " + args)
+    def meta_get(self, should_fail, args):
+        return self._run_command(should_fail, f"{self.meta_get_prog} {args}")
 
     def make_sine (self):
         return os.system (self.make_sine_prog)
@@ -87,8 +84,8 @@ class Programs:
 def print_test_name (name):
     print("    %-30s :" % name, end="")
 
-def assert_info (programs, filename, arg, value):
-    output = programs.meta_get (False, "%s %s" % (arg, filename))
+def assert_info(programs, filename, arg, value):
+    output = programs.meta_get(False, f"{arg} {filename}")
     if output.find (value) < 0:
         print("\n\nError : not able to find '%s'." % value)
         print(output)
@@ -157,11 +154,7 @@ print("\nTesting WAV metadata manipulation:")
 if os.path.isdir (test_dir):
     os.chdir (test_dir)
 
-if len (sys.argv) >= 1 and sys.argv [1].endswith ("mingw32"):
-    needs_exe = True
-else:
-    needs_exe = False
-
+needs_exe = bool(len (sys.argv) >= 1 and sys.argv [1].endswith ("mingw32"))
 programs = Programs (needs_exe)
 
 programs.check_executables ()

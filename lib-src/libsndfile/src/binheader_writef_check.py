@@ -63,7 +63,7 @@ def get_param_list (data):
     dlist = [x.strip() for x in dlist]
     return dlist [2:]
 
-def handle_file (fname):
+def handle_file(fname):
     errors = 0
     data = open (fname, "r").read ()
 
@@ -81,12 +81,15 @@ def handle_file (fname):
             if ch in 'Eet ':
                 continue
 
-            if ch == 'b':
-                if params [param_index][:4] == "BHWv" and params [param_index + 1][:4] == "BHWz":
-                    param_index += 2
-                    continue
+            if (
+                ch == 'b'
+                and params[param_index][:4] == "BHWv"
+                and params[param_index + 1][:4] == "BHWz"
+            ):
+                param_index += 2
+                continue
 
-            if "BHW" + ch == params [param_index][:4]:
+            if f"BHW{ch}" == params[param_index][:4]:
                 param_index += 1
                 continue
 
@@ -103,9 +106,7 @@ def handle_file (fname):
 if len (sys.argv) > 1:
     sys.stdout.write ("\n    binheader_writef_check                   : ")
     sys.stdout.flush ()
-    errors = 0
-    for fname in sys.argv [1:]:
-        errors += handle_file (fname)
+    errors = sum(handle_file (fname) for fname in sys.argv [1:])
     if errors > 0:
         print ("\nErrors : %d\n" % errors)
         sys.exit (1)

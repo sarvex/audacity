@@ -28,10 +28,8 @@ def add_cython_file(self, node):
 		ext = '.cc'
 
 	for x in getattr(self, 'cython_includes', []):
-		# TODO re-use these nodes in "scan" below
-		d = self.path.find_dir(x)
-		if d:
-			self.env.append_unique('CYTHONFLAGS', '-I%s' % d.abspath())
+		if d := self.path.find_dir(x):
+			self.env.append_unique('CYTHONFLAGS', f'-I{d.abspath()}')
 
 	tsk = self.create_task('cython', node, node.change_ext(ext))
 	self.source += tsk.outputs
@@ -68,11 +66,10 @@ class cython(Task.Task):
 
 	def post_run(self):
 		for x in self.outputs:
-			if x.name.endswith('.h'):
-				if not x.exists():
-					if Logs.verbose:
-						Logs.warn('Expected %r', x.abspath())
-					x.write('')
+			if x.name.endswith('.h') and not x.exists():
+				if Logs.verbose:
+					Logs.warn('Expected %r', x.abspath())
+				x.write('')
 		return Task.Task.post_run(self)
 
 	def scan(self):
@@ -102,16 +99,13 @@ class cython(Task.Task):
 		missing = []
 		for x in sorted(mods):
 			for y in incs:
-				k = y.find_resource(x + '.pxd')
-				if k:
+				if k := y.find_resource(f'{x}.pxd'):
 					found.append(k)
 					break
 			else:
 				missing.append(x)
 
-		# the cython file implicitly depends on a pxd file that might be present
-		implicit = node.parent.find_resource(node.name[:-3] + 'pxd')
-		if implicit:
+		if implicit := node.parent.find_resource(f'{node.name[:-3]}pxd'):
 			found.append(implicit)
 
 		Logs.debug('cython: found %r', found)
@@ -127,9 +121,9 @@ class cython(Task.Task):
 					has_public = True
 		name = node.name.replace('.pyx', '')
 		if has_api:
-			missing.append('header:%s_api.h' % name)
+			missing.append(f'header:{name}_api.h')
 		if has_public:
-			missing.append('header:%s.h' % name)
+			missing.append(f'header:{name}.h')
 
 		return (found, missing)
 

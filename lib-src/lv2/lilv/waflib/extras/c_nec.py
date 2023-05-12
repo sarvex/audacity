@@ -29,10 +29,7 @@ def get_sxc_version(conf, fc):
 	p = Utils.subprocess.Popen(cmd, stdin=False, stdout=Utils.subprocess.PIPE, stderr=Utils.subprocess.PIPE, env=None)
 	out, err = p.communicate()
 
-	if out:
-		match = version_re(out)
-	else:
-		match = version_re(err)
+	match = version_re(out) if out else version_re(err)
 	if not match:
 		conf.fatal('Could not determine the NEC C compiler version.')
 	k = match.groupdict()

@@ -13,7 +13,7 @@ def cxx_hook(self, node):
 	"Binds c++ file extensions to create :py:class:`waflib.Tools.cxx.cxx` instances"
 	return self.create_compiled_task('cxx', node)
 
-if not '.c' in TaskGen.task_gen.mappings:
+if '.c' not in TaskGen.task_gen.mappings:
 	TaskGen.task_gen.mappings['.c'] = TaskGen.task_gen.mappings['.cpp']
 
 class cxx(Task.Task):

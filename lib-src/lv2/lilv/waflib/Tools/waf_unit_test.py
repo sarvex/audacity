@@ -58,8 +58,7 @@ def handle_ut_cwd(self, key):
 	Task generator method, used internally to limit code duplication.
 	This method may disappear anytime.
 	"""
-	cwd = getattr(self, key, None)
-	if cwd:
+	if cwd := getattr(self, key, None):
 		if isinstance(cwd, str):
 			# we want a Node instance
 			if os.path.isabs(cwd):
@@ -72,7 +71,7 @@ def make_interpreted_test(self):
 	"""Create interpreted unit tests."""
 	for x in ['test_scripts_source', 'test_scripts_template']:
 		if not hasattr(self, x):
-			Logs.warn('a test_scripts taskgen i missing %s' % x)
+			Logs.warn(f'a test_scripts taskgen i missing {x}')
 			return
 
 	self.ut_run, lst = Task.compile_fun(self.test_scripts_template, shell=getattr(self, 'test_scripts_shell', False))
@@ -85,8 +84,7 @@ def make_interpreted_test(self):
 
 	self.handle_ut_cwd('test_scripts_cwd')
 
-	env = getattr(self, 'test_scripts_env', None)
-	if env:
+	if env := getattr(self, 'test_scripts_env', None):
 		self.ut_env = env
 	else:
 		self.ut_env = dict(os.environ)
@@ -170,9 +168,8 @@ class utest(Task.Task):
 			return Task.SKIP_ME
 
 		ret = super(utest, self).runnable_status()
-		if ret == Task.SKIP_ME:
-			if getattr(Options.options, 'all_tests', False):
-				return Task.RUN_ME
+		if ret == Task.SKIP_ME and getattr(Options.options, 'all_tests', False):
+			return Task.RUN_ME
 		return ret
 
 	def get_test_env(self):
@@ -198,8 +195,7 @@ class utest(Task.Task):
 			return self.generator.ut_run(self)
 
 		self.ut_exec = getattr(self.generator, 'ut_exec', [self.inputs[0].abspath()])
-		ut_cmd = getattr(self.generator, 'ut_cmd', False)
-		if ut_cmd:
+		if ut_cmd := getattr(self.generator, 'ut_cmd', False):
 			self.ut_exec = shlex.split(ut_cmd % ' '.join(self.ut_exec))
 
 		return self.exec_command(self.ut_exec)
@@ -213,7 +209,7 @@ class utest(Task.Task):
 				'cwd': self.get_cwd().abspath(),
 				'cmd': cmd
 			}
-			script_file = self.inputs[0].abspath() + '_run.py'
+			script_file = f'{self.inputs[0].abspath()}_run.py'
 			Utils.writef(script_file, script_code, encoding='utf-8')
 			os.chmod(script_file, Utils.O755)
 			if Logs.verbose > 1:
@@ -241,22 +237,22 @@ def summary(bld):
 			from waflib.Tools import waf_unit_test
 			bld.add_post_fun(waf_unit_test.summary)
 	"""
-	lst = getattr(bld, 'utest_results', [])
-	if lst:
-		Logs.pprint('CYAN', 'execution summary')
+	if not (lst := getattr(bld, 'utest_results', [])):
+		return
+	Logs.pprint('CYAN', 'execution summary')
 
-		total = len(lst)
-		tfail = len([x for x in lst if x[1]])
+	total = len(lst)
+	tfail = len([x for x in lst if x[1]])
 
-		Logs.pprint('GREEN', '  tests that pass %d/%d' % (total-tfail, total))
-		for (f, code, out, err) in lst:
-			if not code:
-				Logs.pprint('GREEN', '    %s' % f)
+	Logs.pprint('GREEN', '  tests that pass %d/%d' % (total-tfail, total))
+	for f, code, out, err in lst:
+		if not code:
+			Logs.pprint('GREEN', f'    {f}')
 
-		Logs.pprint('GREEN' if tfail == 0 else 'RED', '  tests that fail %d/%d' % (tfail, total))
-		for (f, code, out, err) in lst:
-			if code:
-				Logs.pprint('RED', '    %s' % f)
+	Logs.pprint('GREEN' if tfail == 0 else 'RED', '  tests that fail %d/%d' % (tfail, total))
+	for f, code, out, err in lst:
+		if code:
+			Logs.pprint('RED', f'    {f}')
 
 def set_exit_code(bld):
 	"""
@@ -275,9 +271,9 @@ def set_exit_code(bld):
 		if code:
 			msg = []
 			if out:
-				msg.append('stdout:%s%s' % (os.linesep, out.decode('utf-8')))
+				msg.append(f"stdout:{os.linesep}{out.decode('utf-8')}")
 			if err:
-				msg.append('stderr:%s%s' % (os.linesep, err.decode('utf-8')))
+				msg.append(f"stderr:{os.linesep}{err.decode('utf-8')}")
 			bld.fatal(os.linesep.join(msg))
 
 

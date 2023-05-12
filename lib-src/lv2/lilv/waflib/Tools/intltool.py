@@ -109,12 +109,11 @@ def apply_intltool_in_f(self):
 	if '-c' in self.env.INTLFLAGS:
 		self.bld.fatal('Redundant -c flag in intltool task %r' % self)
 
-	style = getattr(self, 'style', None)
-	if style:
+	if style := getattr(self, 'style', None):
 		try:
 			style_flag = _style_flags[style]
 		except KeyError:
-			self.bld.fatal('intltool_in style "%s" is not valid' % style)
+			self.bld.fatal(f'intltool_in style "{style}" is not valid')
 
 		self.env.append_unique('INTLFLAGS', [style_flag])
 
@@ -122,8 +121,7 @@ def apply_intltool_in_f(self):
 		node = self.path.find_resource(i)
 
 		task = self.create_task('intltool', node, node.change_ext(''))
-		inst = getattr(self, 'install_path', None)
-		if inst:
+		if inst := getattr(self, 'install_path', None):
 			self.add_install_files(install_to=inst, install_from=task.outputs)
 
 @feature('intltool_po')
@@ -156,28 +154,28 @@ def apply_intltool_po(self):
 	podir = getattr(self, 'podir', '.')
 	inst = getattr(self, 'install_path', '${LOCALEDIR}')
 
-	linguas = self.path.find_node(os.path.join(podir, 'LINGUAS'))
-	if linguas:
+	if linguas := self.path.find_node(os.path.join(podir, 'LINGUAS')):
 		# scan LINGUAS file for locales to process
 		with open(linguas.abspath()) as f:
 			langs = []
-			for line in f.readlines():
+			for line in f:
 				# ignore lines containing comments
 				if not line.startswith('#'):
 					langs += line.split()
 		re_linguas = re.compile('[-a-zA-Z_@.]+')
 		for lang in langs:
 			# Make sure that we only process lines which contain locales
-			if re_linguas.match(lang):
-				node = self.path.find_resource(os.path.join(podir, re_linguas.match(lang).group() + '.po'))
+			if re_linguas.match(lang) and inst:
+				node = self.path.find_resource(
+					os.path.join(podir, f'{re_linguas.match(lang).group()}.po')
+				)
 				task = self.create_task('po', node, node.change_ext('.mo'))
 
-				if inst:
-					filename = task.outputs[0].name
-					(langname, ext) = os.path.splitext(filename)
-					inst_file = inst + os.sep + langname + os.sep + 'LC_MESSAGES' + os.sep + appname + '.mo'
-					self.add_install_as(install_to=inst_file, install_from=task.outputs[0],
-						chmod=getattr(self, 'chmod', Utils.O644))
+				filename = task.outputs[0].name
+				(langname, ext) = os.path.splitext(filename)
+				inst_file = inst + os.sep + langname + os.sep + 'LC_MESSAGES' + os.sep + appname + '.mo'
+				self.add_install_as(install_to=inst_file, install_from=task.outputs[0],
+					chmod=getattr(self, 'chmod', Utils.O644))
 
 	else:
 		Logs.pprint('RED', "Error no LINGUAS file found in po directory")

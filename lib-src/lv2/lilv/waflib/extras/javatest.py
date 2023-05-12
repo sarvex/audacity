@@ -70,9 +70,8 @@ def make_javatest(self):
 	# that contain test specification, use that as inputs, otherwise test sources
 	if getattr(self, 'jtest_source', None):
 		tsk.inputs = self.to_nodes(self.jtest_source)
-	else:
-		if self.javac_task.srcdir[0].exists():
-			tsk.inputs = self.javac_task.srcdir[0].ant_glob('**/*.java', remove=False)
+	elif self.javac_task.srcdir[0].exists():
+		tsk.inputs = self.javac_task.srcdir[0].ant_glob('**/*.java', remove=False)
 
 	if getattr(self, 'ut_str', None):
 		self.ut_run, lst = Task.compile_fun(self.ut_str, shell=getattr(self, 'ut_shell', False))

@@ -51,19 +51,17 @@ class bjam_creator(Task):
 		if not bjam:
 			Logs.error('Can not find bjam source')
 			return -1
-		bjam_exe_relpath = 'bin.' + env.BJAM_UNAME + '/bjam'
-		bjam_exe = bjam.find_resource(bjam_exe_relpath)
-		if bjam_exe:
+		bjam_exe_relpath = f'bin.{env.BJAM_UNAME}/bjam'
+		if bjam_exe := bjam.find_resource(bjam_exe_relpath):
 			env.BJAM = bjam_exe.srcpath()
 			return 0
 		bjam_cmd = ['./build.sh']
-		Logs.debug('runner: ' + bjam.srcpath() + '> ' + str(bjam_cmd))
+		Logs.debug(f'runner: {bjam.srcpath()}> {bjam_cmd}')
 		result = self.exec_command(bjam_cmd, cwd=bjam.srcpath())
-		if not result == 0:
+		if result != 0:
 			Logs.error('bjam failed')
 			return -1
-		bjam_exe = bjam.find_resource(bjam_exe_relpath)
-		if bjam_exe:
+		if bjam_exe := bjam.find_resource(bjam_exe_relpath):
 			env.BJAM = bjam_exe.srcpath()
 			return 0
 		Logs.error('bjam failed')
@@ -78,13 +76,9 @@ class bjam_build(Task):
 		gen = self.generator
 		path = gen.path
 		bld = gen.bld
-		if hasattr(gen, 'root'):
-			build_root = path.find_node(gen.root)
-		else:
-			build_root = path
-		jam = bld.srcnode.find_resource(env.BJAM_CONFIG)
-		if jam:
-			Logs.debug('bjam: Using jam configuration from ' + jam.srcpath())
+		build_root = path.find_node(gen.root) if hasattr(gen, 'root') else path
+		if jam := bld.srcnode.find_resource(env.BJAM_CONFIG):
+			Logs.debug(f'bjam: Using jam configuration from {jam.srcpath()}')
 			jam_rel = jam.relpath_gen(build_root)
 		else:
 			Logs.warn('No build configuration in build_config/user-config.jam. Using default')
@@ -94,16 +88,17 @@ class bjam_build(Task):
 			Logs.error('env.BJAM is not set')
 			return -1
 		bjam_exe_rel = bjam_exe.relpath_gen(build_root)
-		cmd = ([bjam_exe_rel] +
-			(['--user-config=' + jam_rel] if jam_rel else []) +
-			['--stagedir=' + path.get_bld().path_from(build_root)] +
-			['--debug-configuration'] +
-			['--with-' + lib for lib in self.generator.target] +
-			(['toolset=' + env.BJAM_TOOLSET] if env.BJAM_TOOLSET else []) +
-			['link=' + 'shared'] +
-			['variant=' + 'release']
+		cmd = (
+			[bjam_exe_rel]
+			+ ([f'--user-config={jam_rel}'] if jam_rel else [])
+			+ [f'--stagedir={path.get_bld().path_from(build_root)}']
+			+ ['--debug-configuration']
+			+ [f'--with-{lib}' for lib in self.generator.target]
+			+ ([f'toolset={env.BJAM_TOOLSET}'] if env.BJAM_TOOLSET else [])
+			+ ['link=' + 'shared']
+			+ ['variant=' + 'release']
 		)
-		Logs.debug('runner: ' + build_root.srcpath() + '> ' + str(cmd))
+		Logs.debug(f'runner: {build_root.srcpath()}> {str(cmd)}')
 		ret = self.exec_command(cmd, cwd=build_root.srcpath())
 		if ret != 0:
 			return ret

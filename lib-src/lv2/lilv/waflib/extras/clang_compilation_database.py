@@ -30,9 +30,11 @@ def collect_compilation_db_tasks(self):
 		self.bld.add_post_fun(write_compilation_database)
 
 	tup = tuple(y for y in [Task.classes.get(x) for x in ('c', 'cxx')] if y)
-	for task in getattr(self, 'compiled_tasks', []):
-		if isinstance(task, tup):
-			clang_db.append(task)
+	clang_db.extend(
+		task
+		for task in getattr(self, 'compiled_tasks', [])
+		if isinstance(task, tup)
+	)
 
 def write_compilation_database(ctx):
 	"Write the clang compilation database as JSON"
@@ -42,7 +44,7 @@ def write_compilation_database(ctx):
 		root = json.load(database_file)
 	except IOError:
 		root = []
-	clang_db = dict((x['file'], x) for x in root)
+	clang_db = {x['file']: x for x in root}
 	for task in getattr(ctx, 'clang_compilation_database_tasks', []):
 		try:
 			cmd = task.last_cmd

@@ -34,18 +34,15 @@ def default_lv2_path(conf):
                 '%COMMONPROGRAMFILES%\\\\LV2']
     else:
         libdirname = os.path.basename(conf.env.LIBDIR)
-        return ['~/.lv2',
-                '/usr/%s/lv2' % libdirname,
-                '/usr/local/%s/lv2' % libdirname]
+        return ['~/.lv2', f'/usr/{libdirname}/lv2', f'/usr/local/{libdirname}/lv2']
     
 def configure(conf):
     def env_path(parent_dir_var, name):
         parent = os.getenv(parent_dir_var)
         if parent:
             return os.path.join(parent, name)
-        else:
-            Logs.warn('Environment variable %s unset, using LIBDIR\n' % parent_dir_var)
-            return os.path.join(conf.env['LIBDIR'], name)
+        Logs.warn('Environment variable %s unset, using LIBDIR\n' % parent_dir_var)
+        return os.path.join(conf.env['LIBDIR'], name)
 
     def normpath(path):
         if sys.platform == 'win32':

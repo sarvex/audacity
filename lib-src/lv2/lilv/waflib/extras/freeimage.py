@@ -47,7 +47,7 @@ def check_freeimage(self, path=None, fip=False):
 	self.start_msg('Checking FreeImage')
 	if not self.env['CXX']:
 		self.fatal('you must load compiler_cxx before loading freeimage')
-	prefix = self.options.fi_static and 'ST' or ''
+	prefix = 'ST' if self.options.fi_static else ''
 	platform = Utils.unversioned_sys_platform()
 	if platform == 'win32':
 		if not path:
@@ -55,14 +55,14 @@ def check_freeimage(self, path=None, fip=False):
 					   use --fi-path=/FreeImage/Dist')
 		else:
 			self.env['INCLUDES_FREEIMAGE'] = path
-			self.env['%sLIBPATH_FREEIMAGE' % prefix] = path
+			self.env[f'{prefix}LIBPATH_FREEIMAGE'] = path
 	libs = ['FreeImage']
 	if self.options.fip:
 		libs.append('FreeImagePlus')
 	if platform == 'win32':
-		self.env['%sLIB_FREEIMAGE' % prefix] = libs
+		self.env[f'{prefix}LIB_FREEIMAGE'] = libs
 	else:
-		self.env['%sLIB_FREEIMAGE' % prefix] = [i.lower() for i in libs]
+		self.env[f'{prefix}LIB_FREEIMAGE'] = [i.lower() for i in libs]
 	self.end_msg('ok')
 
 

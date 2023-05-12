@@ -135,11 +135,9 @@ def gcc_modifier_osf1V(conf):
 @conf
 def gxx_modifier_platform(conf):
 	"""Execute platform-specific functions based on *gxx_modifier_+NAME*"""
-	# * set configurations specific for a platform.
-	# * the destination platform is detected automatically by looking at the macros the compiler predefines,
-	#   and if it's not recognised, it fallbacks to sys.platform.
-	gxx_modifier_func = getattr(conf, 'gxx_modifier_' + conf.env.DEST_OS, None)
-	if gxx_modifier_func:
+	if gxx_modifier_func := getattr(
+		conf, f'gxx_modifier_{conf.env.DEST_OS}', None
+	):
 		gxx_modifier_func()
 
 def configure(conf):

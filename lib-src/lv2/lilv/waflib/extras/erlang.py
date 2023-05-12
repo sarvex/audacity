@@ -40,8 +40,8 @@ class erl(Task.Task):
 	color = 'GREEN'
 	run_str = '${ERLC} ${ERL_FLAGS} ${ERLC_INC_PATTERN:ERLC_INCPATHS} ${ERLC_DEF_PATTERN:ERLC_DEFINES} ${SRC}'
 
-	def scan(task):
-		node = task.inputs[0]
+	def scan(self):
+		node = self.inputs[0]
 
 		deps = []
 		scanned = set([])
@@ -52,9 +52,8 @@ class erl(Task.Task):
 				continue
 
 			for i in re.findall(r'-include\("(.*)"\)\.', n.read()):
-				for d in task.erlc_incnodes:
-					r = d.find_node(i)
-					if r:
+				for d in self.erlc_incnodes:
+					if r := d.find_node(i):
 						deps.append(r)
 						nodes_to_scan.append(r)
 						break
@@ -82,7 +81,7 @@ def add_erl_test_run(self):
 	test_task.env.append_value('ERL_FLAGS', self.to_list(getattr(self, 'flags', [])))
 
 	test_list = ", ".join([m.change_ext("").path_from(test_task.cwd)+":test()" for m in test_modules])
-	test_flag = 'halt(case lists:all(fun(Elem) -> Elem == ok end, [%s]) of true -> 0; false -> 1 end).' % test_list
+	test_flag = f'halt(case lists:all(fun(Elem) -> Elem == ok end, [{test_list}]) of true -> 0; false -> 1 end).'
 	test_task.env.append_value('ERL_TEST_FLAGS', EXEC_NON_INTERACTIVE)
 	test_task.env.append_value('ERL_TEST_FLAGS', test_flag)
 
@@ -105,6 +104,8 @@ def add_edoc_task(self):
 	tsk = self.create_task('edoc', e, [t, png, css])
 	tsk.cwd = tsk.outputs[0].parent
 	tsk.env.append_value('ERL_DOC_FLAGS', EXEC_NON_INTERACTIVE)
-	tsk.env.append_value('ERL_DOC_FLAGS', 'edoc:files(["%s"]), halt(0).' % tsk.inputs[0].abspath())
+	tsk.env.append_value(
+		'ERL_DOC_FLAGS', f'edoc:files(["{tsk.inputs[0].abspath()}"]), halt(0).'
+	)
 	# TODO the above can break if a file path contains '"'
 

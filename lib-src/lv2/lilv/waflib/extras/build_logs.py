@@ -69,9 +69,8 @@ def init(ctx):
 	#sys.stdout = log_to_file(sys.stdout, fileobj, filename)
 	#sys.stderr = log_to_file(sys.stderr, fileobj, filename)
 	def wrap(stream):
-		if stream.isatty():
-			return ansiterm.AnsiTerm(stream)
-		return stream
+		return ansiterm.AnsiTerm(stream) if stream.isatty() else stream
+
 	sys.stdout = log_to_file(wrap(sys.__stdout__), fileobj, filename)
 	sys.stderr = log_to_file(wrap(sys.__stderr__), fileobj, filename)
 

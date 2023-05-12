@@ -15,6 +15,7 @@ Usage::
 		conf.load('compiler_cxx gccdeps')
 """
 
+
 import os, re, threading
 from waflib import Task, Logs, Utils, Errors
 from waflib.Tools import c_preproc
@@ -22,15 +23,12 @@ from waflib.TaskGen import before_method, feature
 
 lock = threading.Lock()
 
-gccdeps_flags = ['-MD']
-if not c_preproc.go_absolute:
-	gccdeps_flags = ['-MMD']
-
+gccdeps_flags = ['-MMD'] if not c_preproc.go_absolute else ['-MD']
 # Third-party tools are allowed to add extra names in here with append()
 supported_compilers = ['gcc', 'icc', 'clang']
 
 def scan(self):
-	if not self.__class__.__name__ in self.env.ENABLE_GCCDEPS:
+	if self.__class__.__name__ not in self.env.ENABLE_GCCDEPS:
 		return super(self.derived_gccdeps, self).scan()
 	nodes = self.generator.bld.node_deps.get(self.uid(), [])
 	names = []
@@ -47,10 +45,7 @@ def remove_makefile_rule_lhs(line):
 	rulesep = ': '
 
 	sep_idx = line.find(rulesep)
-	if sep_idx >= 0:
-		return line[sep_idx + 2:]
-	else:
-		return line
+	return line[sep_idx + 2:] if sep_idx >= 0 else line
 
 def path_to_node(base_node, path, cached_nodes):
 	# Take the base node and the path and return a node
@@ -72,7 +67,7 @@ def path_to_node(base_node, path, cached_nodes):
 	return node
 
 def post_run(self):
-	if not self.__class__.__name__ in self.env.ENABLE_GCCDEPS:
+	if self.__class__.__name__ not in self.env.ENABLE_GCCDEPS:
 		return super(self.derived_gccdeps, self).post_run()
 
 	name = self.outputs[0].abspath()
@@ -161,7 +156,7 @@ def post_run(self):
 	Task.Task.post_run(self)
 
 def sig_implicit_deps(self):
-	if not self.__class__.__name__ in self.env.ENABLE_GCCDEPS:
+	if self.__class__.__name__ not in self.env.ENABLE_GCCDEPS:
 		return super(self.derived_gccdeps, self).sig_implicit_deps()
 	try:
 		return Task.Task.sig_implicit_deps(self)

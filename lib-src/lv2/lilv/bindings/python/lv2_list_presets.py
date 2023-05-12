@@ -27,7 +27,7 @@ def print_presets(uri):
         if not label:
             sys.stderr.write("warning: Preset <%s> has no label\n" % preset)
 
-        preset_list.append((str(preset), str(label)))
+        preset_list.append((str(preset), label))
 
     for preset in sorted(preset_list):
         print('<%s> "%s"' % preset)

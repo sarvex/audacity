@@ -35,9 +35,9 @@ def init_rubyext(self):
 	"""
 	self.install_path = '${ARCHDIR_RUBY}'
 	self.uselib = self.to_list(getattr(self, 'uselib', ''))
-	if not 'RUBY' in self.uselib:
+	if 'RUBY' not in self.uselib:
 		self.uselib.append('RUBY')
-	if not 'RUBYEXT' in self.uselib:
+	if 'RUBYEXT' not in self.uselib:
 		self.uselib.append('RUBYEXT')
 
 @feature('rubyext')
@@ -75,7 +75,7 @@ def check_ruby_version(self, minver=()):
 		if ver < minver:
 			self.fatal('ruby is too old %r' % ver)
 
-	self.msg('Checking for ruby version %s' % cver, version)
+	self.msg(f'Checking for ruby version {cver}', version)
 
 @conf
 def check_ruby_ext_devel(self):
@@ -148,7 +148,7 @@ def check_ruby_module(self, module_name):
 	:param module_name: module
 	:type  module_name: string
 	"""
-	self.start_msg('Ruby module %s' % module_name)
+	self.start_msg(f'Ruby module {module_name}')
 	try:
 		self.cmd_and_log(self.env.RUBY + ['-e', 'require \'%s\';puts 1' % module_name])
 	except Errors.WafError:

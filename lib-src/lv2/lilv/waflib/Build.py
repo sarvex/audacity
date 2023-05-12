@@ -9,6 +9,7 @@ The inheritance tree is the following:
 
 """
 
+
 import os, sys, errno, re, shutil, stat
 try:
 	import cPickle
@@ -42,9 +43,7 @@ POST_AT_ONCE = 0
 POST_LAZY = 1
 """Post mode: post the task generators group after group, the tasks in the next group are created when the tasks in the previous groups are done"""
 
-PROTOCOL = -1
-if sys.platform == 'cli':
-	PROTOCOL = 0
+PROTOCOL = 0 if sys.platform == 'cli' else -1
 
 class BuildContext(Context.Context):
 	'''executes the build'''
@@ -192,7 +191,7 @@ class BuildContext(Context.Context):
 		node = self.root.find_node(self.cache_dir)
 		if not node:
 			raise Errors.WafError('The project was not configured: run "waf configure" first!')
-		lst = node.ant_glob('**/*%s' % CACHE_SUFFIX, quiet=True)
+		lst = node.ant_glob(f'**/*{CACHE_SUFFIX}', quiet=True)
 
 		if not lst:
 			raise Errors.WafError('The cache directory is empty: reconfigure the project')
@@ -316,18 +315,18 @@ class BuildContext(Context.Context):
 		finally:
 			Node.pickle_lock.release()
 
-		Utils.writef(db + '.tmp', x, m='wb')
+		Utils.writef(f'{db}.tmp', x, m='wb')
 
 		try:
 			st = os.stat(db)
 			os.remove(db)
 			if not Utils.is_win32: # win32 has no chown but we're paranoid
-				os.chown(db + '.tmp', st.st_uid, st.st_gid)
+				os.chown(f'{db}.tmp', st.st_uid, st.st_gid)
 		except (AttributeError, OSError):
 			pass
 
 		# do not use shutil.move (copy is not thread-safe)
-		os.rename(db + '.tmp', db)
+		os.rename(f'{db}.tmp', db)
 
 	def compile(self):
 		"""
@@ -454,7 +453,7 @@ class BuildContext(Context.Context):
 			if not env:
 				return Utils.SIG_NIL
 
-		idx = str(id(env)) + str(vars_lst)
+		idx = id(env) + str(vars_lst)
 		try:
 			cache = self.cache_env
 		except AttributeError:
@@ -517,18 +516,14 @@ class BuildContext(Context.Context):
 		pc = (100. * idx)/total
 		fs = "[%%%dd/%%d][%%s%%2d%%%%%%s][%s][" % (n, ind)
 		left = fs % (idx, total, col1, pc, col2)
-		right = '][%s%s%s]' % (col1, self.timer, col2)
+		right = f'][{col1}{self.timer}{col2}]'
 
 		cols = Logs.get_term_cols() - len(left) - len(right) + 2*len(col1) + 2*len(col2)
-		if cols < 7:
-			cols = 7
-
+		cols = max(cols, 7)
 		ratio = ((cols * idx)//total) - 1
 
 		bar = ('='*ratio+'>').ljust(cols)
-		msg = Logs.indicator % (left, bar, right)
-
-		return msg
+		return Logs.indicator % (left, bar, right)
 
 	def declare_chain(self, *k, **kw):
 		"""
@@ -588,13 +583,11 @@ class BuildContext(Context.Context):
 			self.add_group()
 		if x is None:
 			return self.groups[self.current_group]
-		if x in self.group_names:
-			return self.group_names[x]
-		return self.groups[x]
+		return self.group_names[x] if x in self.group_names else self.groups[x]
 
 	def add_to_group(self, tgen, group=None):
 		"""Adds a task or a task generator to the build; there is no attempt to remove it if it was already added."""
-		assert(isinstance(tgen, TaskGen.task_gen) or isinstance(tgen, Task.Task))
+		assert isinstance(tgen, (TaskGen.task_gen, Task.Task))
 		tgen.bld = self
 		self.get_group(group).append(tgen)
 
@@ -609,10 +602,9 @@ class BuildContext(Context.Context):
 		"""
 		if not isinstance(g, list):
 			g = self.groups[g]
-		for x in self.group_names:
-			if id(self.group_names[x]) == id(g):
-				return x
-		return ''
+		return next(
+			(x for x in self.group_names if id(self.group_names[x]) == id(g)), ''
+		)
 
 	def get_group_idx(self, tg):
 		"""
@@ -775,10 +767,8 @@ class BuildContext(Context.Context):
 							if is_post(tg, ln):
 								return True
 
-			if self.post_mode == POST_LAZY and ln != self.srcnode:
-				# partial folder builds require all targets from a previous build group
-				if is_post_group():
-					ln = self.srcnode
+			if self.post_mode == POST_LAZY and ln != self.srcnode and is_post_group():
+				ln = self.srcnode
 
 			for tg in self.groups[self.current_group]:
 				if is_post(tg, ln):
@@ -1334,7 +1324,7 @@ class CleanContext(BuildContext):
 			lst = []
 			for env in self.all_envs.values():
 				lst.extend(self.root.find_or_declare(f) for f in env[CFG_FILES])
-			excluded_dirs = '.lock* *conf_check_*/** config.log %s/*' % CACHE_DIR
+			excluded_dirs = f'.lock* *conf_check_*/** config.log {CACHE_DIR}/*'
 			for n in self.bldnode.ant_glob('**/*', excl=excluded_dirs, quiet=True):
 				if n in lst:
 					continue
@@ -1396,7 +1386,7 @@ class ListContext(BuildContext):
 			descript = getattr(tgen, 'description', '')
 			if descript:
 				target = target.ljust(line_just)
-				descript = ': %s' % descript
+				descript = f': {descript}'
 
 			Logs.pprint('GREEN', target, label=descript)
 
@@ -1441,21 +1431,12 @@ class StepContext(BuildContext):
 			for pat in self.files.split(','):
 				matcher = self.get_matcher(pat)
 				for tg in g:
-					if isinstance(tg, Task.Task):
-						lst = [tg]
-					else:
-						lst = tg.tasks
+					lst = [tg] if isinstance(tg, Task.Task) else tg.tasks
 					for tsk in lst:
-						do_exec = False
-						for node in tsk.inputs:
-							if matcher(node, output=False):
-								do_exec = True
-								break
-						for node in tsk.outputs:
-							if matcher(node, output=True):
-								do_exec = True
-								break
-						if do_exec:
+						if do_exec := next(
+							(True for node in tsk.outputs if matcher(node, output=True)),
+							any(matcher(node, output=False) for node in tsk.inputs),
+						):
 							ret = tsk.run()
 							Logs.info('%s -> exit %r', tsk, ret)
 
@@ -1481,9 +1462,9 @@ class StepContext(BuildContext):
 		pattern = None
 		if not anode:
 			if not pat.startswith('^'):
-				pat = '^.+?%s' % pat
+				pat = f'^.+?{pat}'
 			if not pat.endswith('$'):
-				pat = '%s$' % pat
+				pat = f'{pat}$'
 			pattern = re.compile(pat)
 
 		def match(node, output):
@@ -1492,10 +1473,8 @@ class StepContext(BuildContext):
 			if not output and not inn:
 				return False
 
-			if anode:
-				return anode == node
-			else:
-				return pattern.match(node.abspath())
+			return anode == node if anode else pattern.match(node.abspath())
+
 		return match
 
 class EnvContext(BuildContext):

@@ -37,7 +37,7 @@ def add_gdbus_file(self, filename, prefix, namespace, export=False):
 	"""
 	if not hasattr(self, 'gdbus_lst'):
 		self.gdbus_lst = []
-	if not 'process_gdbus' in self.meths:
+	if 'process_gdbus' not in self.meths:
 		self.meths.append('process_gdbus')
 	self.gdbus_lst.append([filename, prefix, namespace, export])
 
@@ -52,7 +52,7 @@ def process_gdbus(self):
 	for filename, prefix, namespace, export in getattr(self, 'gdbus_lst', []):
 		node = self.path.find_resource(filename)
 		if not node:
-			raise Errors.WafError('file not found ' + filename)
+			raise Errors.WafError(f'file not found {filename}')
 		c_file = output_node.find_or_declare(node.change_ext('.c').name)
 		h_file = output_node.find_or_declare(node.change_ext('.h').name)
 		tsk = self.create_task('gdbus_binding_tool', node, [c_file, h_file])

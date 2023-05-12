@@ -49,8 +49,7 @@ def ifort_modifier_darwin(conf):
 @conf
 def ifort_modifier_platform(conf):
 	dest_os = conf.env.DEST_OS or Utils.unversioned_sys_platform()
-	ifort_modifier_func = getattr(conf, 'ifort_modifier_' + dest_os, None)
-	if ifort_modifier_func:
+	if ifort_modifier_func := getattr(conf, f'ifort_modifier_{dest_os}', None):
 		ifort_modifier_func()
 
 @conf
@@ -59,11 +58,7 @@ def get_ifort_version(conf, fc):
 	Detects the compiler version and sets ``conf.env.FC_VERSION``
 	"""
 	version_re = re.compile(r"\bIntel\b.*\bVersion\s*(?P<major>\d*)\.(?P<minor>\d*)",re.I).search
-	if Utils.is_win32:
-		cmd = fc
-	else:
-		cmd = fc + ['-logo']
-
+	cmd = fc if Utils.is_win32 else fc + ['-logo']
 	out, err = fc_config.getoutput(conf, cmd, stdin=False)
 	match = version_re(out) or version_re(err)
 	if not match:
@@ -126,10 +121,7 @@ def gather_ifort_versions(conf, versions):
 			continue
 		targets = {}
 		for target,arch in all_ifort_platforms:
-			if target=='intel64':
-				targetDir='EM64T_NATIVE'
-			else:
-				targetDir=target
+			targetDir = 'EM64T_NATIVE' if target=='intel64' else target
 			try:
 				Utils.winreg.OpenKey(all_versions,version+'\\'+targetDir)
 				icl_version=Utils.winreg.OpenKey(all_versions,version)
@@ -151,8 +143,8 @@ def gather_ifort_versions(conf, versions):
 				batch_file=os.path.join(path,'bin','ifortvars.bat')
 				if os.path.isfile(batch_file):
 					targets[target] = target_compiler(conf, 'intel', arch, version, target, batch_file)
-		major = version[0:2]
-		versions['intel ' + major] = targets
+		major = version[:2]
+		versions[f'intel {major}'] = targets
 
 @conf
 def setup_ifort(conf, versiondict):
@@ -376,10 +368,9 @@ def apply_flags_ifort(self):
 
 	is_static = isinstance(self.link_task, ccroot.stlink_task)
 
-	subsystem = getattr(self, 'subsystem', '')
-	if subsystem:
-		subsystem = '/subsystem:%s' % subsystem
-		flags = is_static and 'ARFLAGS' or 'LINKFLAGS'
+	if subsystem := getattr(self, 'subsystem', ''):
+		subsystem = f'/subsystem:{subsystem}'
+		flags = 'ARFLAGS' if is_static else 'LINKFLAGS'
 		self.env.append_value(flags, subsystem)
 
 	if not is_static:
@@ -407,7 +398,7 @@ def apply_manifest_ifort(self):
 
 	if self.env.IFORT_WIN32 and self.env.IFORT_MANIFEST and getattr(self, 'link_task', None):
 		out_node = self.link_task.outputs[0]
-		man_node = out_node.parent.find_or_declare(out_node.name + '.manifest')
+		man_node = out_node.parent.find_or_declare(f'{out_node.name}.manifest')
 		self.link_task.outputs.append(man_node)
 		self.env.DO_MANIFEST = True
 

@@ -7,6 +7,7 @@ Classes and methods shared by tools providing support for C-like language such
 as C/C++/D/Assembly/Go (this support module is almost never used alone).
 """
 
+
 import os, re
 from waflib import Task, Utils, Node, Errors, Logs
 from waflib.TaskGen import after_method, before_method, feature, taskgen_method, extension
@@ -20,20 +21,76 @@ USELIB_VARS = Utils.defaultdict(set)
 Mapping for features to :py:class:`waflib.ConfigSet.ConfigSet` variables. See :py:func:`waflib.Tools.ccroot.propagate_uselib_vars`.
 """
 
-USELIB_VARS['c']        = set(['INCLUDES', 'FRAMEWORKPATH', 'DEFINES', 'CPPFLAGS', 'CCDEPS', 'CFLAGS', 'ARCH'])
-USELIB_VARS['cxx']      = set(['INCLUDES', 'FRAMEWORKPATH', 'DEFINES', 'CPPFLAGS', 'CXXDEPS', 'CXXFLAGS', 'ARCH'])
-USELIB_VARS['d']        = set(['INCLUDES', 'DFLAGS'])
-USELIB_VARS['includes'] = set(['INCLUDES', 'FRAMEWORKPATH', 'ARCH'])
+USELIB_VARS['c'] = {
+	'INCLUDES',
+	'FRAMEWORKPATH',
+	'DEFINES',
+	'CPPFLAGS',
+	'CCDEPS',
+	'CFLAGS',
+	'ARCH',
+}
+USELIB_VARS['cxx'] = {
+	'INCLUDES',
+	'FRAMEWORKPATH',
+	'DEFINES',
+	'CPPFLAGS',
+	'CXXDEPS',
+	'CXXFLAGS',
+	'ARCH',
+}
+USELIB_VARS['d'] = {'INCLUDES', 'DFLAGS'}
+USELIB_VARS['includes'] = {'INCLUDES', 'FRAMEWORKPATH', 'ARCH'}
 
-USELIB_VARS['cprogram'] = USELIB_VARS['cxxprogram'] = set(['LIB', 'STLIB', 'LIBPATH', 'STLIBPATH', 'LINKFLAGS', 'RPATH', 'LINKDEPS', 'FRAMEWORK', 'FRAMEWORKPATH', 'ARCH', 'LDFLAGS'])
-USELIB_VARS['cshlib']   = USELIB_VARS['cxxshlib']   = set(['LIB', 'STLIB', 'LIBPATH', 'STLIBPATH', 'LINKFLAGS', 'RPATH', 'LINKDEPS', 'FRAMEWORK', 'FRAMEWORKPATH', 'ARCH', 'LDFLAGS'])
-USELIB_VARS['cstlib']   = USELIB_VARS['cxxstlib']   = set(['ARFLAGS', 'LINKDEPS'])
+USELIB_VARS['cprogram'] = USELIB_VARS['cxxprogram'] = {
+	'LIB',
+	'STLIB',
+	'LIBPATH',
+	'STLIBPATH',
+	'LINKFLAGS',
+	'RPATH',
+	'LINKDEPS',
+	'FRAMEWORK',
+	'FRAMEWORKPATH',
+	'ARCH',
+	'LDFLAGS',
+}
+USELIB_VARS['cshlib'] = USELIB_VARS['cxxshlib'] = {
+	'LIB',
+	'STLIB',
+	'LIBPATH',
+	'STLIBPATH',
+	'LINKFLAGS',
+	'RPATH',
+	'LINKDEPS',
+	'FRAMEWORK',
+	'FRAMEWORKPATH',
+	'ARCH',
+	'LDFLAGS',
+}
+USELIB_VARS['cstlib'] = USELIB_VARS['cxxstlib'] = {'ARFLAGS', 'LINKDEPS'}
 
-USELIB_VARS['dprogram'] = set(['LIB', 'STLIB', 'LIBPATH', 'STLIBPATH', 'LINKFLAGS', 'RPATH', 'LINKDEPS'])
-USELIB_VARS['dshlib']   = set(['LIB', 'STLIB', 'LIBPATH', 'STLIBPATH', 'LINKFLAGS', 'RPATH', 'LINKDEPS'])
-USELIB_VARS['dstlib']   = set(['ARFLAGS', 'LINKDEPS'])
+USELIB_VARS['dprogram'] = {
+	'LIB',
+	'STLIB',
+	'LIBPATH',
+	'STLIBPATH',
+	'LINKFLAGS',
+	'RPATH',
+	'LINKDEPS',
+}
+USELIB_VARS['dshlib'] = {
+	'LIB',
+	'STLIB',
+	'LIBPATH',
+	'STLIBPATH',
+	'LINKFLAGS',
+	'RPATH',
+	'LINKDEPS',
+}
+USELIB_VARS['dstlib'] = {'ARFLAGS', 'LINKDEPS'}
 
-USELIB_VARS['asm'] = set(['ASFLAGS'])
+USELIB_VARS['asm'] = {'ASFLAGS'}
 
 # =================================================================================================
 
@@ -86,20 +143,18 @@ def to_incnodes(self, inlst):
 		# with a real lot of targets, it is sometimes interesting to cache the results below
 		if isinstance(x, Node.Node):
 			lst.append(x)
+		elif os.path.isabs(x):
+			lst.append(self.bld.root.make_node(x) or x)
 		else:
-			if os.path.isabs(x):
-				lst.append(self.bld.root.make_node(x) or x)
+			if x[0] == '#':
+				p = self.bld.bldnode.make_node(x[1:])
+				v = self.bld.srcnode.make_node(x[1:])
 			else:
-				if x[0] == '#':
-					p = self.bld.bldnode.make_node(x[1:])
-					v = self.bld.srcnode.make_node(x[1:])
-				else:
-					p = self.path.get_bld().make_node(x)
-					v = self.path.make_node(x)
-				if p.is_child_of(self.bld.bldnode):
-					p.mkdir()
-				lst.append(p)
-				lst.append(v)
+				p = self.path.get_bld().make_node(x)
+				v = self.path.make_node(x)
+			if p.is_child_of(self.bld.bldnode):
+				p.mkdir()
+			lst.extend((p, v))
 	return lst
 
 @feature('c', 'cxx', 'd', 'asm', 'fc', 'includes')
@@ -152,7 +207,7 @@ class link_task(Task.Task):
 				target = target[1:]
 				base = self.generator.bld.bldnode
 
-			pattern = self.env[self.__class__.__name__ + '_PATTERN']
+			pattern = self.env[f'{self.__class__.__name__}_PATTERN']
 			if not pattern:
 				pattern = '%s'
 			folder, name = os.path.split(target)
@@ -162,16 +217,13 @@ class link_task(Task.Task):
 				if self.env.DEST_BINFMT == 'pe':
 					# include the version in the dll file name,
 					# the import lib file name stays unversioned.
-					name = name + '-' + nums[0]
+					name = f'{name}-{nums[0]}'
 				elif self.env.DEST_OS == 'openbsd':
-					pattern = '%s.%s' % (pattern, nums[0])
+					pattern = f'{pattern}.{nums[0]}'
 					if len(nums) >= 2:
-						pattern += '.%s' % nums[1]
+						pattern += f'.{nums[1]}'
 
-			if folder:
-				tmp = folder + os.sep + pattern % name
-			else:
-				tmp = pattern % name
+			tmp = folder + os.sep + pattern % name if folder else pattern % name
 			target = base.find_or_declare(tmp)
 		self.set_outputs(target)
 
@@ -213,7 +265,7 @@ class link_task(Task.Task):
 		lst = [] + self.env.MT
 		lst.extend(Utils.to_list(self.env.MTFLAGS))
 		lst.extend(['-manifest', manifest])
-		lst.append('-outputresource:%s;%s' % (self.outputs[0].abspath(), mode))
+		lst.append(f'-outputresource:{self.outputs[0].abspath()};{mode}')
 
 		return super(link_task, self).exec_command(lst)
 
@@ -269,10 +321,9 @@ def apply_link(self):
 		elif x == 'cshlib' and 'cxx' in self.features:
 			x = 'cxxshlib'
 
-		if x in Task.classes:
-			if issubclass(Task.classes[x], link_task):
-				link = x
-				break
+		if x in Task.classes and issubclass(Task.classes[x], link_task):
+			link = x
+			break
 	else:
 		return
 
@@ -327,7 +378,7 @@ def use_rec(self, name, **kw):
 
 	p = self.tmp_use_prec
 	for x in self.to_list(getattr(y, 'use', [])):
-		if self.env["STLIB_" + x]:
+		if self.env[f"STLIB_{x}"]:
 			continue
 		try:
 			p[x].append(name)
@@ -383,8 +434,8 @@ def process_use(self):
 		else:
 			del use_prec[e]
 			for x in nlst:
-				for y in use_prec:
-					if x in use_prec[y]:
+				for y, value in use_prec.items():
+					if x in value:
 						break
 				else:
 					tmp.append(x)
@@ -405,10 +456,9 @@ def process_use(self):
 				self.env.append_value(var, [y.target[y.target.rfind(os.sep) + 1:]])
 				self.link_task.dep_nodes.extend(y.link_task.outputs)
 				tmp_path = y.link_task.outputs[0].parent.path_from(self.get_cwd())
-				self.env.append_unique(var + 'PATH', [tmp_path])
-		else:
-			if y.tmp_use_objects:
-				self.add_objects_from_tgen(y)
+				self.env.append_unique(f'{var}PATH', [tmp_path])
+		elif y.tmp_use_objects:
+			self.add_objects_from_tgen(y)
 
 		if getattr(y, 'export_includes', None):
 			# self.includes may come from a global variable #2035
@@ -423,11 +473,11 @@ def process_use(self):
 		try:
 			y = self.bld.get_tgen_by_name(x)
 		except Errors.WafError:
-			if not self.env['STLIB_' + x] and not x in self.uselib:
+			if not self.env[f'STLIB_{x}'] and x not in self.uselib:
 				self.uselib.append(x)
 		else:
 			for k in self.to_list(getattr(y, 'use', [])):
-				if not self.env['STLIB_' + k] and not k in self.uselib:
+				if not self.env[f'STLIB_{k}'] and k not in self.uselib:
 					self.uselib.append(k)
 
 @taskgen_method
@@ -491,13 +541,11 @@ def propagate_uselib_vars(self):
 	feature_uselib = self.features + self.to_list(getattr(self, 'uselib', []))
 	for var in _vars:
 		y = var.lower()
-		val = getattr(self, y, [])
-		if val:
+		if val := getattr(self, y, []):
 			app(var, self.to_list(val))
 
 		for x in feature_uselib:
-			val = env['%s_%s' % (var, x)]
-			if val:
+			if val := env[f'{var}_{x}']:
 				app(var, val)
 
 # ============ the code above must not know anything about import libs ==========
@@ -511,7 +559,7 @@ def apply_implib(self):
 	A ``.dll.a`` file called *import library* is generated.
 	It must be installed as it is required for linking the library.
 	"""
-	if not self.env.DEST_BINFMT == 'pe':
+	if self.env.DEST_BINFMT != 'pe':
 		return
 
 	dll = self.link_task.outputs[0]
@@ -590,16 +638,16 @@ def apply_vnum(self):
 
 	cnum = getattr(self, 'cnum', str(nums[0]))
 	cnums = cnum.split('.')
-	if len(cnums)>len(nums) or nums[0:len(cnums)] != cnums:
-		raise Errors.WafError('invalid compatibility version %s' % cnum)
+	if len(cnums) > len(nums) or nums[: len(cnums)] != cnums:
+		raise Errors.WafError(f'invalid compatibility version {cnum}')
 
 	libname = node.name
 	if libname.endswith('.dylib'):
-		name3 = libname.replace('.dylib', '.%s.dylib' % self.vnum)
-		name2 = libname.replace('.dylib', '.%s.dylib' % cnum)
+		name3 = libname.replace('.dylib', f'.{self.vnum}.dylib')
+		name2 = libname.replace('.dylib', f'.{cnum}.dylib')
 	else:
-		name3 = libname + '.' + self.vnum
-		name2 = libname + '.' + cnum
+		name3 = f'{libname}.{self.vnum}'
+		name2 = f'{libname}.{cnum}'
 
 	# add the so name for the ld linker - to disable, just unset env.SONAME_ST
 	if self.env.SONAME_ST:
@@ -619,7 +667,11 @@ def apply_vnum(self):
 		path = self.install_task.install_to
 		if self.env.DEST_OS == 'openbsd':
 			libname = self.link_task.outputs[0].name
-			t1 = self.add_install_as(install_to='%s/%s' % (path, libname), install_from=node, chmod=self.link_task.chmod)
+			t1 = self.add_install_as(
+				install_to=f'{path}/{libname}',
+				install_from=node,
+				chmod=self.link_task.chmod,
+			)
 			self.vnum_install_task = (t1,)
 		else:
 			t1 = self.add_install_as(install_to=path + os.sep + name3, install_from=node, chmod=self.link_task.chmod)
@@ -640,8 +692,8 @@ def apply_vnum(self):
 			p = Utils.subst_vars(inst_to, self.env)
 			path = os.path.join(p, name2)
 			self.env.append_value('LINKFLAGS', ['-install_name', path])
-			self.env.append_value('LINKFLAGS', '-Wl,-compatibility_version,%s' % cnum)
-			self.env.append_value('LINKFLAGS', '-Wl,-current_version,%s' % self.vnum)
+			self.env.append_value('LINKFLAGS', f'-Wl,-compatibility_version,{cnum}')
+			self.env.append_value('LINKFLAGS', f'-Wl,-current_version,{self.vnum}')
 
 class vnum(Task.Task):
 	"""
@@ -669,20 +721,18 @@ class fake_shlib(link_task):
 	Task used for reading a system library and adding the dependency on it
 	"""
 	def runnable_status(self):
-		for t in self.run_after:
-			if not t.hasrun:
-				return Task.ASK_LATER
-		return Task.SKIP_ME
+		return next(
+			(Task.ASK_LATER for t in self.run_after if not t.hasrun), Task.SKIP_ME
+		)
 
 class fake_stlib(stlink_task):
 	"""
 	Task used for reading a system library and adding the dependency on it
 	"""
 	def runnable_status(self):
-		for t in self.run_after:
-			if not t.hasrun:
-				return Task.ASK_LATER
-		return Task.SKIP_ME
+		return next(
+			(Task.ASK_LATER for t in self.run_after if not t.hasrun), Task.SKIP_ME
+		)
 
 @conf
 def read_shlib(self, name, paths=[], export_includes=[], export_defines=[]):
@@ -734,7 +784,7 @@ def process_lib(self):
 		break
 	else:
 		raise Errors.WafError('could not find library %r' % self.name)
-	self.link_task = self.create_task('fake_%s' % self.lib_type, [], [node])
+	self.link_task = self.create_task(f'fake_{self.lib_type}', [], [node])
 	self.target = self.name
 
 

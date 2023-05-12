@@ -96,7 +96,9 @@ class doxygen(Task.Task):
 				output_node = self.inputs[0].parent.get_bld().make_node(self.pars['OUTPUT_DIRECTORY'])
 			else:
 				# If no OUTPUT_PATH was specified in the Doxyfile, build path from the Doxyfile name + '.doxy'
-				output_node = self.inputs[0].parent.get_bld().make_node(self.inputs[0].name + '.doxy')
+				output_node = (
+					self.inputs[0].parent.get_bld().make_node(f'{self.inputs[0].name}.doxy')
+				)
 			output_node.mkdir()
 			self.pars['OUTPUT_DIRECTORY'] = output_node.abspath()
 
@@ -132,20 +134,19 @@ class doxygen(Task.Task):
 		if not file_patterns:
 			file_patterns = DOXY_FILE_PATTERNS.split()
 		if self.pars.get('RECURSIVE') == 'YES':
-			file_patterns = ["**/%s" % pattern for pattern in file_patterns]
+			file_patterns = [f"**/{pattern}" for pattern in file_patterns]
 		nodes = []
 		names = []
 		for node in self.doxy_inputs:
 			if os.path.isdir(node.abspath()):
-				for m in node.ant_glob(incl=file_patterns, excl=exclude_patterns):
-					nodes.append(m)
+				nodes.extend(iter(node.ant_glob(incl=file_patterns, excl=exclude_patterns)))
 			else:
 				nodes.append(node)
 		return (nodes, names)
 
 	def run(self):
 		dct = self.pars.copy()
-		code = '\n'.join(['%s = %s' % (x, dct[x]) for x in self.pars])
+		code = '\n'.join([f'{x} = {dct[x]}' for x in self.pars])
 		code = code.encode() # for python 3
 		#fmt = DOXY_STR % (self.inputs[0].parent.abspath())
 		cmd = Utils.subst_vars(DOXY_STR, self.env)
@@ -164,13 +165,14 @@ class doxygen(Task.Task):
 	def add_install(self):
 		nodes = self.output_dir.ant_glob('**/*', quiet=True)
 		self.outputs += nodes
-		if getattr(self.generator, 'install_path', None):
-			if not getattr(self.generator, 'doxy_tar', None):
-				self.generator.add_install_files(install_to=self.generator.install_path,
-					install_from=self.outputs,
-					postpone=False,
-					cwd=self.output_dir,
-					relative_trick=True)
+		if getattr(self.generator, 'install_path', None) and not getattr(
+			self.generator, 'doxy_tar', None
+		):
+			self.generator.add_install_files(install_to=self.generator.install_path,
+				install_from=self.outputs,
+				postpone=False,
+				cwd=self.output_dir,
+				relative_trick=True)
 
 class tar(Task.Task):
 	"quick tar creation"
@@ -204,7 +206,7 @@ def process_doxy(self):
 	if not isinstance(node, Node.Node):
 		node = self.path.find_resource(node)
 	if not node:
-		self.bld.fatal('doxygen file %s not found' % self.doxyfile)
+		self.bld.fatal(f'doxygen file {self.doxyfile} not found')
 
 	# the task instance
 	dsk = self.create_task('doxygen', node)

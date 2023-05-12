@@ -29,8 +29,7 @@ def nag_flags(conf):
 @conf
 def nag_modifier_platform(conf):
 	dest_os = conf.env['DEST_OS'] or Utils.unversioned_sys_platform()
-	nag_modifier_func = getattr(conf, 'nag_modifier_' + dest_os, None)
-	if nag_modifier_func:
+	if nag_modifier_func := getattr(conf, f'nag_modifier_{dest_os}', None):
 		nag_modifier_func()
 
 @conf

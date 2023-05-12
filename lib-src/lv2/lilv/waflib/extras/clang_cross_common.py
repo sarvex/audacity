@@ -14,7 +14,7 @@ def normalize_target_triple(target_triple):
 	normalized_triple = target_triple.replace('--', '-unknown-')
 
 	if normalized_triple.startswith('-'):
-		normalized_triple = 'unknown' + normalized_triple
+		normalized_triple = f'unknown{normalized_triple}'
 
 	if normalized_triple.endswith('-'):
 		normalized_triple += 'unknown'
@@ -108,6 +108,7 @@ def clang_modifier_target_triple(conf, cpp=False):
 	output = conf.cmd_and_log(compiler + ['-dumpmachine'], output=waflib.Context.STDOUT)
 
 	modifier = ('clangxx' if cpp else 'clang') + '_modifier_'
-	clang_modifier_func = getattr(conf, modifier + normalize_target_triple(output), None)
-	if clang_modifier_func:
+	if clang_modifier_func := getattr(
+		conf, modifier + normalize_target_triple(output), None
+	):
 		clang_modifier_func()

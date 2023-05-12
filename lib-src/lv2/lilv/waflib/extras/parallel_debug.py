@@ -157,7 +157,7 @@ def compile_template(line):
 
 		f = extr[x]
 		if f.startswith(('if', 'for')):
-			app(f + ':')
+			app(f'{f}:')
 			indent += 1
 		elif f.startswith('py:'):
 			app(f[3:])
@@ -165,17 +165,16 @@ def compile_template(line):
 			indent -= 1
 		elif f.startswith(('else', 'elif')):
 			indent -= 1
-			app(f + ':')
+			app(f'{f}:')
 			indent += 1
 		elif f.startswith('xml:'):
-			app('lst.append(xml_escape(%s))' % f[4:])
+			app(f'lst.append(xml_escape({f[4:]}))')
 		else:
 			#app('lst.append((%s) or "cannot find %s")' % (f, f))
-			app('lst.append(str(%s))' % f)
+			app(f'lst.append(str({f}))')
 
-	if extr:
-		if params[-1]:
-			app("lst.append(%r)" % params[-1])
+	if extr and params[-1]:
+		app("lst.append(%r)" % params[-1])
 
 	fun = COMPILE_TEMPLATE % "\n\t".join(buf)
 	# uncomment the following to debug the template
@@ -208,9 +207,7 @@ def map_to_color(name):
 		return color2code['RED']
 	if cls.color in mp:
 		return mp[cls.color]
-	if cls.color in color2code:
-		return color2code[cls.color]
-	return color2code['RED']
+	return color2code[cls.color] if cls.color in color2code else color2code['RED']
 
 def process(self):
 	m = self.generator.bld.producer
@@ -313,7 +310,7 @@ def make_picture(producer):
 		seen = []
 		for x in tmp:
 			name = x[3]
-			if not name in seen:
+			if name not in seen:
 				seen.append(name)
 			else:
 				continue
@@ -334,7 +331,7 @@ def make_picture(producer):
 
 	st = {}
 	for l in tmp:
-		if not l[0] in st:
+		if l[0] not in st:
 			st[l[0]] = len(st.keys())
 	tmp = [  [st[lst[0]]] + lst[1:] for lst in tmp ]
 	THREAD_AMOUNT = len(st.keys())
@@ -383,7 +380,6 @@ def make_picture(producer):
 	gheight = BAND * (THREAD_AMOUNT + len(info) + 1.5)
 
 
-	# simple data model for our template
 	class tobject(object):
 		pass
 

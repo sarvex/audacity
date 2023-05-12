@@ -116,18 +116,20 @@ def post_run(self):
 
 		if not node:
 			raise ValueError('could not find %r for %r' % (path, self))
-		else:
-			if not c_preproc.go_absolute:
-				if not (node.is_child_of(bld.srcnode) or node.is_child_of(bld.bldnode)):
-					# System library
-					Logs.debug('msvcdeps: Ignoring system include %r', node)
-					continue
+		if (
+			not c_preproc.go_absolute
+			and not node.is_child_of(bld.srcnode)
+			and not node.is_child_of(bld.bldnode)
+		):
+			# System library
+			Logs.debug('msvcdeps: Ignoring system include %r', node)
+			continue
 
-			if id(node) == id(self.inputs[0]):
-				# Self-dependency
-				continue
+		if id(node) == id(self.inputs[0]):
+			# Self-dependency
+			continue
 
-			resolved_nodes.append(node)
+		resolved_nodes.append(node)
 
 	bld.node_deps[self.uid()] = resolved_nodes
 	bld.raw_deps[self.uid()] = unresolved_names
@@ -160,7 +162,7 @@ def exec_command(self, cmd, **kw):
 	if self.env.CC_NAME not in supported_compilers:
 		return super(self.derived_msvcdeps, self).exec_command(cmd, **kw)
 
-	if not 'cwd' in kw:
+	if 'cwd' not in kw:
 		kw['cwd'] = self.get_cwd()
 
 	if self.env.PATH:
@@ -201,7 +203,7 @@ def exec_command(self, cmd, **kw):
 		if Logs.verbose:
 			Logs.debug('argfile: @%r -> %r', tmp, args)
 		try:
-			raw_out = self.generator.bld.cmd_and_log(cmd + ['@' + tmp], **kw)
+			raw_out = self.generator.bld.cmd_and_log(cmd + [f'@{tmp}'], **kw)
 			ret = 0
 		except Errors.WafError as e:
 			# Use e.msg if e.stdout is not set
@@ -221,7 +223,7 @@ def exec_command(self, cmd, **kw):
 
 		# Pipe through the remaining stdout content (not related to /showIncludes)
 		if self.generator.bld.logger:
-			self.generator.bld.logger.debug('out: %s' % os.linesep.join(out))
+			self.generator.bld.logger.debug(f'out: {os.linesep.join(out)}')
 		else:
 			sys.stdout.write(os.linesep.join(out) + os.linesep)
 

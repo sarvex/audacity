@@ -14,10 +14,10 @@ registering = False
 def configure(self):
     self.find_program('cabal', var='CABAL')
     self.find_program('ghc-pkg', var='GHCPKG')
-    pkgconfd = self.bldnode.abspath() + '/package.conf.d'
-    self.env.PREFIX = self.bldnode.abspath() + '/dist'
+    pkgconfd = f'{self.bldnode.abspath()}/package.conf.d'
+    self.env.PREFIX = f'{self.bldnode.abspath()}/dist'
     self.env.PKGCONFD = pkgconfd
-    if self.root.find_node(pkgconfd + '/package.cache'):
+    if self.root.find_node(f'{pkgconfd}/package.cache'):
         self.msg('Using existing package database', pkgconfd, color='CYAN')
     else:
         pkgdir = self.root.find_dir(pkgconfd)

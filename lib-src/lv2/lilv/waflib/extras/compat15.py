@@ -88,7 +88,7 @@ def env_of_name(self, name):
 	try:
 		return self.all_envs[name]
 	except KeyError:
-		Logs.error('no such environment: '+name)
+		Logs.error(f'no such environment: {name}')
 		return None
 Build.BuildContext.env_of_name = env_of_name
 
@@ -232,9 +232,8 @@ def apply_uselib_local(self):
 	seen = set()
 	seen_uselib = set()
 	tmp = Utils.deque(names) # consume a copy of the list of names
-	if tmp:
-		if Logs.verbose:
-			Logs.warn('compat: "uselib_local" is deprecated, replace by "use"')
+	if tmp and Logs.verbose:
+		Logs.warn('compat: "uselib_local" is deprecated, replace by "use"')
 	while tmp:
 		lib_name = tmp.popleft()
 		# visit dependencies only once
@@ -250,9 +249,10 @@ def apply_uselib_local(self):
 			for x in self.to_list(getattr(y, 'uselib_local', [])):
 				obj = get(x)
 				obj.post()
-				if getattr(obj, 'link_task', None):
-					if not isinstance(obj.link_task, stlink_task):
-						tmp.append(x)
+				if getattr(obj, 'link_task', None) and not isinstance(
+					obj.link_task, stlink_task
+				):
+					tmp.append(x)
 
 		# link task and flags
 		if getattr(y, 'link_task', None):
@@ -272,16 +272,15 @@ def apply_uselib_local(self):
 
 			# add the link path too
 			tmp_path = y.link_task.outputs[0].parent.bldpath()
-			if not tmp_path in env['LIBPATH']:
+			if tmp_path not in env['LIBPATH']:
 				env.prepend_value('LIBPATH', [tmp_path])
 
 		# add ancestors uselib too - but only propagate those that have no staticlib defined
 		for v in self.to_list(getattr(y, 'uselib', [])):
 			if v not in seen_uselib:
 				seen_uselib.add(v)
-				if not env['STLIB_' + v]:
-					if not v in self.uselib:
-						self.uselib.insert(0, v)
+				if not env[f'STLIB_{v}'] and v not in self.uselib:
+					self.uselib.insert(0, v)
 
 		# if the library task generator provides 'export_includes', add to the include path
 		# the export_includes must be a list of paths relative to the other library
@@ -345,7 +344,7 @@ def add_obj_file(self, file):
 	obj.add_obj_file('foo.o')"""
 	if not hasattr(self, 'obj_files'):
 		self.obj_files = []
-	if not 'process_obj_files' in self.meths:
+	if 'process_obj_files' not in self.meths:
 		self.meths.append('process_obj_files')
 	self.obj_files.append(file)
 

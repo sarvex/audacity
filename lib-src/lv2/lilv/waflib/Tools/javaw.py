@@ -109,13 +109,14 @@ Or build-wise by setting RECURSE_JAVA:
 Unit tests can be integrated in the waf unit test environment using the javatest extra.
 """
 
+
 import os, shutil
 from waflib import Task, Utils, Errors, Node
 from waflib.Configure import conf
 from waflib.TaskGen import feature, before_method, after_method, taskgen_method
 
 from waflib.Tools import ccroot
-ccroot.USELIB_VARS['javac'] = set(['CLASSPATH', 'JAVACFLAGS'])
+ccroot.USELIB_VARS['javac'] = {'CLASSPATH', 'JAVACFLAGS'}
 
 SOURCE_RE = '**/*.java'
 JAR_RE = '**/*'
@@ -173,7 +174,7 @@ def apply_java(self):
 		else:
 			y = self.path.find_dir(x)
 			if not y:
-				self.bld.fatal('Could not find the folder %s from %s' % (x, self.path))
+				self.bld.fatal(f'Could not find the folder {x} from {self.path}')
 		tmp.append(y)
 
 	tsk.srcdir = tmp
@@ -212,11 +213,10 @@ def java_use_rec(self, name, **kw):
 		# is already guaranteed by ordering done between the single tasks
 		if hasattr(y, 'jar_task'):
 			self.use_lst.append(y.jar_task.outputs[0].abspath())
+		elif hasattr(y,'outdir'):
+			self.use_lst.append(y.outdir.abspath())
 		else:
-			if hasattr(y,'outdir'):
-				self.use_lst.append(y.outdir.abspath())
-			else:
-				self.use_lst.append(y.path.get_bld().abspath())
+			self.use_lst.append(y.path.get_bld().abspath())
 
 	for x in self.to_list(getattr(y, 'use', [])):
 		self.java_use_rec(x)
@@ -245,13 +245,11 @@ def use_javac_files(self):
 				self.javac_task.set_run_after(tg.jar_task)
 				self.javac_task.dep_nodes.extend(tg.jar_task.outputs)
 			else:
-				if hasattr(tg, 'outdir'):
-					base_node = tg.outdir
-				else:
-					base_node = tg.path.get_bld()
-
+				base_node = tg.outdir if hasattr(tg, 'outdir') else tg.path.get_bld()
 				self.use_lst.append(base_node.abspath())
-				self.javac_task.dep_nodes.extend([x for x in base_node.ant_glob(JAR_RE, remove=False, quiet=True)])
+				self.javac_task.dep_nodes.extend(
+					list(base_node.ant_glob(JAR_RE, remove=False, quiet=True))
+				)
 
 				for tsk in tg.tasks:
 					self.javac_task.set_run_after(tsk)
@@ -314,9 +312,7 @@ def jar_files(self):
 	tsk.basedir = basedir
 
 	jaropts.append('-C')
-	jaropts.append(basedir.bldpath())
-	jaropts.append('.')
-
+	jaropts.extend((basedir.bldpath(), '.'))
 	tsk.env.JAROPTS = jaropts
 	tsk.env.JARCREATE = jarcreate
 
@@ -392,8 +388,7 @@ class javac(JTask):
 	def uid(self):
 		"""Identify java tasks by input&output folder"""
 		lst = [self.__class__.__name__, self.generator.outdir.abspath()]
-		for x in self.srcdir:
-			lst.append(x.abspath())
+		lst.extend(x.abspath() for x in self.srcdir)
 		return Utils.h_list(lst)
 
 	def runnable_status(self):
@@ -457,10 +452,17 @@ class javadoc(Task.Task):
 
 		self.last_cmd = lst = []
 		lst.extend(Utils.to_list(env.JAVADOC))
-		lst.extend(['-d', self.generator.javadoc_output.abspath()])
-		lst.extend(['-sourcepath', srcpath])
-		lst.extend(['-classpath', classpath])
-		lst.extend(['-subpackages'])
+		lst.extend(
+			[
+				'-d',
+				self.generator.javadoc_output.abspath(),
+				'-sourcepath',
+				srcpath,
+				'-classpath',
+				classpath,
+				'-subpackages',
+			]
+		)
 		lst.extend(self.generator.javadoc_package)
 		lst = [x for x in lst if x]
 
@@ -529,7 +531,7 @@ def check_java_class(self, classname, with_classpath=None):
 	self.to_log("%s\n" % str(cmd))
 	found = self.exec_command(cmd, shell=False)
 
-	self.msg('Checking for java class %s' % classname, not found)
+	self.msg(f'Checking for java class {classname}', not found)
 
 	shutil.rmtree(javatestdir, True)
 
@@ -559,9 +561,9 @@ def check_jni_headers(conf):
 	# jni requires the jvm
 	javaHome = conf.env.JAVA_HOME[0]
 
-	dir = conf.root.find_dir(conf.env.JAVA_HOME[0] + '/include')
+	dir = conf.root.find_dir(f'{conf.env.JAVA_HOME[0]}/include')
 	if dir is None:
-		dir = conf.root.find_dir(conf.env.JAVA_HOME[0] + '/../Headers') # think different?!
+		dir = conf.root.find_dir(f'{conf.env.JAVA_HOME[0]}/../Headers')
 	if dir is None:
 		conf.fatal('JAVA_HOME does not seem to be set properly')
 
@@ -572,10 +574,7 @@ def check_jni_headers(conf):
 	f = dir.ant_glob('**/*jvm.(so|dll|dylib)')
 	libDirs = [x.parent.abspath() for x in f] or [javaHome]
 
-	# On windows, we need both the .dll and .lib to link.  On my JDK, they are
-	# in different directories...
-	f = dir.ant_glob('**/*jvm.(lib)')
-	if f:
+	if f := dir.ant_glob('**/*jvm.(lib)'):
 		libDirs = [[x, y.parent.abspath()] for x in libDirs for y in f]
 
 	if conf.env.DEST_OS == 'freebsd':

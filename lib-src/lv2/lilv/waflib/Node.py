@@ -74,11 +74,11 @@ def ant_matcher(s, ignorecase):
 				accu.append(k)
 			else:
 				k = k.replace('.', '[.]').replace('*', '.*').replace('?', '.').replace('+', '\\+')
-				k = '^%s$' % k
+				k = f'^{k}$'
 				try:
 					exp = re.compile(k, flags=reflags)
 				except Exception as e:
-					raise Errors.WafError('Invalid pattern: %s' % k, e)
+					raise Errors.WafError(f'Invalid pattern: {k}', e)
 				else:
 					accu.append(exp)
 		ret.append(accu)
@@ -233,7 +233,7 @@ class Node(object):
 					return value
 
 			def object_pairs(pairs):
-				return dict((str(pair[0]), convert(pair[1])) for pair in pairs)
+				return {str(pair[0]): convert(pair[1]) for pair in pairs}
 
 			object_pairs_hook = object_pairs
 
@@ -256,7 +256,7 @@ class Node(object):
 		separators = (',', ': ')
 		sort_keys = pretty
 		newline = os.linesep
-		if not pretty:
+		if not sort_keys:
 			indent = None
 			separators = (',', ':')
 			newline = ''
@@ -294,14 +294,13 @@ class Node(object):
 		Do not use this object after calling this method.
 		"""
 		try:
-			try:
-				if os.path.isdir(self.abspath()):
-					shutil.rmtree(self.abspath())
-				else:
-					os.remove(self.abspath())
-			except OSError:
-				if os.path.exists(self.abspath()):
-					raise
+			if os.path.isdir(self.abspath()):
+				shutil.rmtree(self.abspath())
+			else:
+				os.remove(self.abspath())
+		except OSError:
+			if os.path.exists(self.abspath()):
+				raise
 		finally:
 			if evict:
 				self.evict()
@@ -504,19 +503,18 @@ class Node(object):
 			c2 = c2.parent
 			c2h -= 1
 
-		while not c1 is c2:
+		while c1 is not c2:
 			lst.append(c1.name)
 			up += 1
 
 			c1 = c1.parent
 			c2 = c2.parent
 
-		if c1.parent:
-			lst.extend(['..'] * up)
-			lst.reverse()
-			return os.sep.join(lst) or '.'
-		else:
+		if not c1.parent:
 			return self.abspath()
+		lst.extend(['..'] * up)
+		lst.reverse()
+		return os.sep.join(lst) or '.'
 
 	def abspath(self):
 		"""
@@ -613,18 +611,20 @@ class Node(object):
 				node = self.make_node([name])
 
 				isdir = node.isdir()
-				if accepted:
-					if isdir:
-						if dir:
-							yield node
-					elif src:
-						yield node
-
+				if accepted and (isdir and dir or not isdir and src):
+					yield node
 				if isdir:
 					node.cache_isdir = True
 					if maxdepth:
-						for k in node.ant_iter(accept=accept, maxdepth=maxdepth - 1, pats=npats, dir=dir, src=src, remove=remove, quiet=quiet):
-							yield k
+						yield from node.ant_iter(
+							accept=accept,
+							maxdepth=maxdepth - 1,
+							pats=npats,
+							dir=dir,
+							src=src,
+							remove=remove,
+							quiet=quiet,
+						)
 
 	def ant_glob(self, *k, **kw):
 		"""
@@ -718,11 +718,7 @@ class Node(object):
 			return Utils.lazy_generator(self.ant_iter, (ant_sub_matcher, maxdepth, pats, dir, src, remove, quiet))
 
 		it = self.ant_iter(ant_sub_matcher, maxdepth, pats, dir, src, remove, quiet)
-		if kw.get('flat'):
-			# returns relative paths as a space-delimited string
-			# prefer Node objects whenever possible
-			return ' '.join(x.path_from(self) for x in it)
-		return list(it)
+		return ' '.join(x.path_from(self) for x in it) if kw.get('flat') else list(it)
 
 	# ----------------------------------------------------------------------------
 	# the methods below require the source/build folders (bld.srcnode/bld.bldnode)
@@ -824,9 +820,7 @@ class Node(object):
 		node = self.get_bld().search_node(lst)
 		if not node:
 			node = self.get_src().find_node(lst)
-		if node and node.isdir():
-			return None
-		return node
+		return None if node and node.isdir() else node
 
 	def find_or_declare(self, lst):
 		"""
@@ -859,9 +853,7 @@ class Node(object):
 			lst = [x for x in Utils.split_path(lst) if x and x != '.']
 
 		node = self.find_node(lst)
-		if node and not node.isdir():
-			return None
-		return node
+		return None if node and not node.isdir() else node
 
 	# helpers for building things
 	def change_ext(self, ext, ext_in=None):
@@ -874,10 +866,7 @@ class Node(object):
 		name = self.name
 		if ext_in is None:
 			k = name.rfind('.')
-			if k >= 0:
-				name = name[:k] + ext
-			else:
-				name = name + ext
+			name = name[:k] + ext if k >= 0 else name + ext
 		else:
 			name = name[:- len(ext_in)] + ext
 

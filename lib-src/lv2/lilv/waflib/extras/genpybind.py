@@ -133,7 +133,7 @@ class genpybind(Task.Task): # pylint: disable=invalid-name
                 ))
 
         if stderr.strip():
-            Logs.debug("non-fatal warnings during genpybind run:\n{}".format(stderr))
+            Logs.debug(f"non-fatal warnings during genpybind run:\n{stderr}")
 
         return stdout
 
@@ -149,16 +149,14 @@ class genpybind(Task.Task): # pylint: disable=invalid-name
                     relative_includes.append(node.path_from(inc))
                     break
             else:
-                self.generator.bld.fatal("could not resolve {}".format(node))
+                self.generator.bld.fatal(f"could not resolve {node}")
         return relative_includes
 
     def _arguments(self, genpybind_parse=None, resource_dir=None):
-        args = []
         relative_includes = self._inputs_as_relative_includes()
         is_cxx = "cxx" in self.features
 
-        # options for genpybind
-        args.extend(["--genpybind-module", self.module])
+        args = ["--genpybind-module", self.module]
         if self.genpybind_tags:
             args.extend(["--genpybind-tag"] + self.genpybind_tags)
         if relative_includes:
@@ -171,11 +169,7 @@ class genpybind(Task.Task): # pylint: disable=invalid-name
         # headers to be processed by genpybind
         args.extend(node.abspath() for node in self.inputs)
 
-        args.append("--")
-
-        # options for clang/genpybind-parse
-        args.append("-D__GENPYBIND__")
-        args.append("-xc++" if is_cxx else "-xc")
+        args.extend(("--", "-D__GENPYBIND__", "-xc++" if is_cxx else "-xc"))
         has_std_argument = False
         for flag in self.env["CXXFLAGS" if is_cxx else "CFLAGS"]:
             flag = flag.replace("-std=gnu", "-std=c")
@@ -184,11 +178,11 @@ class genpybind(Task.Task): # pylint: disable=invalid-name
             args.append(flag)
         if not has_std_argument:
             args.append("-std=c++14")
-        args.extend("-I{}".format(n.abspath()) for n in self._include_paths())
-        args.extend("-D{}".format(p) for p in self.env.DEFINES)
+        args.extend(f"-I{n.abspath()}" for n in self._include_paths())
+        args.extend(f"-D{p}" for p in self.env.DEFINES)
 
         # point to clang resource dir, if specified
         if resource_dir:
-            args.append("-resource-dir={}".format(resource_dir))
+            args.append(f"-resource-dir={resource_dir}")
 
         return args

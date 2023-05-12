@@ -121,13 +121,12 @@ def tg_file_to_object(self):
 	targets = []
 	for src in sources:
 		if bld.env.F2O_METHOD == ["asm"]:
-			tgt = src.parent.find_or_declare(src.name + '.f2o.s')
+			tgt = src.parent.find_or_declare(f'{src.name}.f2o.s')
 			tsk = self.create_task('file_to_object_s', src, tgt)
-			tsk.cwd = src.parent.abspath() # verify
 		else:
-			tgt = src.parent.find_or_declare(src.name + '.f2o.c')
+			tgt = src.parent.find_or_declare(f'{src.name}.f2o.c')
 			tsk = self.create_task('file_to_object_c', src, tgt)
-			tsk.cwd = src.parent.abspath() # verify
+		tsk.cwd = src.parent.abspath() # verify
 		targets.append(tgt)
 	self.source = targets
 

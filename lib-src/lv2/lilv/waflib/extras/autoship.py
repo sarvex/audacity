@@ -86,8 +86,8 @@ def get_release_json(title, entry):
 
     version = entry["revision"]
     desc = {
-        "name": "%s %s" % (title, version),
-        "tag_name": "v%s" % version,
+        "name": f"{title} {version}",
+        "tag_name": f"v{version}",
         "description": get_items_markdown(entry["items"]),
         "released_at": entry["date"].isoformat(),
     }
@@ -162,8 +162,8 @@ def read_text_news(in_file, preserve_timezones=False, dist_pattern=None):
 
             # Skip trailing blank line before next entry
             space = f.readline()
-            if space != "\n" and space != "":
-                raise SyntaxError("expected blank line, not '%s'" % space)
+            if space not in ["\n", ""]:
+                raise SyntaxError(f"expected blank line, not '{space}'")
 
     return entries
 
@@ -175,7 +175,7 @@ def write_text_news(entries, news):
     revisions = sorted(entries.keys(), reverse=True)
     for r in revisions:
         e = entries[r]
-        summary = "%s (%s) %s" % (e["name"], e["revision"], e["status"])
+        summary = f'{e["name"]} ({e["revision"]}) {e["status"]}'
         news.write("\n" if r != revisions[0] else "")
         news.write("%s;\n" % summary)
 
@@ -184,7 +184,7 @@ def write_text_news(entries, news):
             news.write("\n  * " + "\n    ".join(wrapped))
 
         email = e["blamee_mbox"].replace("mailto:", "")
-        author = "%s <%s>" % (e["blamee_name"], email)
+        author = f'{e["blamee_name"]} <{email}>'
         date = e["date"].strftime("%a, %d %b %Y %H:%M:%S %z")
         news.write("\n\n -- %s  %s\n" % (author, date))
 
@@ -225,7 +225,7 @@ def read_ttl_news(name, in_files, top_entries=None, dist_pattern=None):
             if dist_pattern is not None:
                 dist = dist_pattern % semver
             else:
-                warn("No file release for %s %s" % (proj, revision))
+                warn(f"No file release for {proj} {revision}")
 
         if revision and date and blamee and changeset:
             status = "stable" if is_release_version(revision) else "unstable"
@@ -247,14 +247,14 @@ def read_ttl_news(name, in_files, top_entries=None, dist_pattern=None):
                 if dist and top_entries is not None:
                     if dist not in top_entries:
                         top_entries[dist] = {"items": []}
-                    top_entries[dist]["items"] += ["%s: %s" % (name, item)]
+                    top_entries[dist]["items"] += [f"{name}: {item}"]
 
             e["blamee_name"] = str(g.value(blamee, foaf.name, None))
             e["blamee_mbox"] = str(g.value(blamee, foaf.mbox, None))
 
             entries[semver] = e
         else:
-            warn("Ignored incomplete %s release description" % name)
+            warn(f"Ignored incomplete {name} release description")
 
     return entries
 
@@ -296,7 +296,7 @@ def write_ttl_news(entries, out_file, template=None, subject_uri=None):
         semver = parse_version(e["revision"])
         ver_string = "%03d%03d%03d" % semver
 
-        release = rdflib.BNode("r%s" % ver_string)
+        release = rdflib.BNode(f"r{ver_string}")
         g.add((subject, doap.release, release))
         g.add((release, doap.revision, rdflib.Literal(e["revision"])))
 
@@ -311,7 +311,7 @@ def write_ttl_news(entries, out_file, template=None, subject_uri=None):
         if maintainer is not None:
             g.add((release, dcs.blame, maintainer))
 
-        changeset = rdflib.BNode("c%s" % ver_string)
+        changeset = rdflib.BNode(f"c{ver_string}")
         g.add((release, dcs.changeset, changeset))
         for index, item in enumerate(e["items"]):
             item_node = rdflib.BNode("i%s%08d" % (ver_string, index))
@@ -399,7 +399,7 @@ def write_posts(entries, out_dir, meta={}):
     """Write news posts in Pelican Markdown format"""
     import datetime
 
-    report("Writing posts to %s" % out_dir)
+    report(f"Writing posts to {out_dir}")
 
     info = get_project_info()
     description = get_blurb("README.md")
@@ -416,17 +416,17 @@ def write_posts(entries, out_dir, meta={}):
         name = e["name"]
         revision = e["revision"]
         if "dist" not in e:
-            warn("No file release for %s %s" % (name, revision))
+            warn(f"No file release for {name} {revision}")
             continue
 
         date = e["date"].astimezone(datetime.timezone.utc)
         date_str = date.strftime("%Y-%m-%d")
         datetime_str = date.strftime("%Y-%m-%d %H:%M")
         slug_version = revision.replace(".", "-")
-        filename = "%s-%s-%s.md" % (date_str, name, slug_version)
+        filename = f"{date_str}-{name}-{slug_version}.md"
 
         with open(os.path.join(out_dir, filename), "w") as post:
-            slug = "%s-%s" % (name, slug_version)
+            slug = f"{name}-{slug_version}"
             post.write("Title: %s %s\n" % (title, revision))
             post.write("Date: %s\n" % datetime_str)
             post.write("Slug: %s\n" % slug)
@@ -434,9 +434,9 @@ def write_posts(entries, out_dir, meta={}):
                 post.write("%s: %s\n" % (k, meta[k]))
 
             url = e["dist"]
-            link = "[%s %s](%s)" % (title, revision, url)
+            link = f"[{title} {revision}]({url})"
             post.write("\n%s has been released." % link)
-            post.write("  " + description + "\n")
+            post.write(f"  {description}" + "\n")
 
             if e["items"] != ["Initial release"]:
                 post.write("\nChanges:\n\n")
@@ -493,20 +493,20 @@ def post_lab_release(version, lab, group, token, dry_run=False):
     dry_run = dry_run
 
     # Check that this is a release version
-    ensure(is_release_version(semver), "%s is an unstable version" % version)
+    ensure(is_release_version(semver), f"{version} is an unstable version")
 
     # Post Gitlab release
     post_cmd = [
         "curl",
         "-XPOST",
         "-HContent-Type: application/json",
-        "-HPRIVATE-TOKEN: " + token,
-        "-d" + get_release_json(title, entries[semver]),
-        "%s/releases" % url,
+        f"-HPRIVATE-TOKEN: {token}",
+        f"-d{get_release_json(title, entries[semver])}",
+        f"{url}/releases",
     ]
     run_cmd(post_cmd)
 
-    report("Posted Gitlab release %s %s" % (name, version))
+    report(f"Posted Gitlab release {name} {version}")
 
 
 def post_lab_release_command():
@@ -541,12 +541,12 @@ def release(args, posts_dir=None, remote_dist_dir=None, dist_name=None):
     dry_run = args.dry_run
 
     # Check that this is a release version first of all
-    ensure(is_release_version(semver), "%s is an unstable version" % version)
-    report("Releasing %s %s" % (name, version))
+    ensure(is_release_version(semver), f"{version} is an unstable version")
+    report(f"Releasing {name} {version}")
 
     # Check that NEWS is up to date
     entries = read_news()
-    ensure(semver in entries, "%s has no NEWS entries" % version)
+    ensure(semver in entries, f"{version} has no NEWS entries")
 
     # Check that working copy is up to date
     fetch_cmd = ["git", "fetch", "--dry-run"]
@@ -554,8 +554,8 @@ def release(args, posts_dir=None, remote_dist_dir=None, dist_name=None):
     ensure(len(fetch_status) == 0, "Local copy is out of date")
 
     # Remove distribution if one was already built
-    dist = "%s-%s.tar.bz2" % (dist_name or name.lower(), version)
-    sig = dist + ".sig"
+    dist = f"{dist_name or name.lower()}-{version}.tar.bz2"
+    sig = f"{dist}.sig"
     try:
         os.remove(dist)
         os.remove(sig)
@@ -573,25 +573,25 @@ def release(args, posts_dir=None, remote_dist_dir=None, dist_name=None):
 
     # Fetch project description and ensure it matches
     url = "https://%s/api/v4/projects/%s%%2F%s" % (args.lab, args.group, name)
-    desc_cmd = ["curl", "-HPRIVATE-TOKEN: " + args.token, url]
+    desc_cmd = ["curl", f"-HPRIVATE-TOKEN: {args.token}", url]
     desc = json.loads(subprocess.check_output(desc_cmd))
     proj_name = desc["name"]
-    ensure(proj_name == name, "Project name '%s' != '%s'" % (proj_name, name))
+    ensure(proj_name == name, f"Project name '{proj_name}' != '{name}'")
 
     # Build distribution
     run_cmd(["./waf", "configure", "--docs"])
     run_cmd(["./waf", "build"])
     run_cmd(["./waf", "distcheck"])
-    ensure(dry_run or os.path.exists(dist), "%s was not created" % dist)
+    ensure(dry_run or os.path.exists(dist), f"{dist} was not created")
 
     # Sign distribution
     run_cmd(["gpg", "-b", dist])
-    ensure(dry_run or os.path.exists(sig), "%s.sig was not created" % dist)
+    ensure(dry_run or os.path.exists(sig), f"{dist}.sig was not created")
     run_cmd(["gpg", "--verify", sig])
 
     # Tag release
-    tag = "v" + version
-    run_cmd(["git", "tag", "-s", tag, "-m", "%s %s" % (title, version)])
+    tag = f"v{version}"
+    run_cmd(["git", "tag", "-s", tag, "-m", f"{title} {version}"])
     run_cmd(["git", "push", "--tags"])
 
     # Generate posts
@@ -606,7 +606,7 @@ def release(args, posts_dir=None, remote_dist_dir=None, dist_name=None):
     # Post Gitlab release
     post_lab_release(version, args.lab, args.group, args.token, dry_run)
 
-    report("Released %s %s" % (name, version))
+    report(f"Released {name} {version}")
     report("Remember to upload posts and push to other remotes!")
 
 
@@ -628,7 +628,7 @@ if __name__ == "__main__":
 
     # Get list of command names from handler functions for help text
     global_names = list(globals().keys())
-    handlers = [k[0:-8] for k in global_names if k.endswith("_command")]
+    handlers = [k[:-8] for k in global_names if k.endswith("_command")]
 
     # Run simple top level argument parser to get command name
     ap = argparse.ArgumentParser(
@@ -639,7 +639,7 @@ if __name__ == "__main__":
     args = ap.parse_args(sys.argv[1:2])
 
     # Check that a handler is defined for the given command
-    function_name = args.command + "_command"
+    function_name = f"{args.command}_command"
     if function_name not in globals():
         sys.stderr.write("error: Unknown command '%s'\n" % args.command)
         ap.print_help()

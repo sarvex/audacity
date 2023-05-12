@@ -196,14 +196,11 @@ def post_cpplint(self):
     if self.env.CPPLINT_SKIP:
         return
 
-    if not self.env.CPPLINT_OUTPUT in CPPLINT_RE:
+    if self.env.CPPLINT_OUTPUT not in CPPLINT_RE:
         return
 
     for src in self.to_list(getattr(self, 'source', [])):
-        if isinstance(src, Node.Node):
-            node = src
-        else:
-            node = self.path.find_or_declare(src)
+        node = src if isinstance(src, Node.Node) else self.path.find_or_declare(src)
         if not node:
             self.bld.fatal('Could not find %r' % src)
         self.create_task('cpplint', node)

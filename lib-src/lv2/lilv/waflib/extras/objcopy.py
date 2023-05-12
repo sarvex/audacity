@@ -33,7 +33,7 @@ def map_objcopy(self):
 
 	link_output = self.link_task.outputs[0]
 	if not self.objcopy_target:
-		self.objcopy_target = link_output.change_ext('.' + self.objcopy_bfdname).name
+		self.objcopy_target = link_output.change_ext(f'.{self.objcopy_bfdname}').name
 	task = self.create_task('objcopy', src=link_output, tgt=self.path.find_or_declare(self.objcopy_target))
 
 	task.env.append_unique('TARGET_BFDNAME', self.objcopy_bfdname)
@@ -47,7 +47,6 @@ def map_objcopy(self):
 
 def configure(ctx):
 	program_name = 'objcopy'
-	prefix = getattr(Options.options, 'cross_prefix', None)
-	if prefix:
-		program_name = '{}-{}'.format(prefix, program_name)
+	if prefix := getattr(Options.options, 'cross_prefix', None):
+		program_name = f'{prefix}-{program_name}'
 	ctx.find_program(program_name, var='OBJCOPY', mandatory=True)

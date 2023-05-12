@@ -35,18 +35,16 @@ def scan(self):
 
 	global open_re
 	names = []
-	import_iterator = open_re.finditer(code)
-	if import_iterator:
-		for import_match in import_iterator:
-			names.append(import_match.group(1))
+	if import_iterator := open_re.finditer(code):
+		names.extend(import_match.group(1) for import_match in import_iterator)
 	found_lst = []
 	raw_lst = []
 	for name in names:
 		nd = None
 		for x in self.incpaths:
-			nd = x.find_resource(name.lower()+'.ml')
+			nd = x.find_resource(f'{name.lower()}.ml')
 			if not nd:
-				nd = x.find_resource(name+'.ml')
+				nd = x.find_resource(f'{name}.ml')
 			if nd:
 				found_lst.append(nd)
 				break
@@ -108,9 +106,9 @@ def apply_incpaths_ml(self):
 	for dir in inc_lst:
 		node = self.path.find_dir(dir)
 		if not node:
-			error("node not found: " + str(dir))
+			error(f"node not found: {str(dir)}")
 			continue
-		if not node in lst:
+		if node not in lst:
 			lst.append(node)
 		self.bld_incpaths_lst.append(node)
 	# now the nodes are added to self.incpaths_lst
@@ -130,8 +128,7 @@ def apply_vars_ml(self):
 	varnames = ['INCLUDES', 'OCAMLFLAGS', 'OCALINKFLAGS', 'OCALINKFLAGS_OPT']
 	for name in self.uselib.split():
 		for vname in varnames:
-			cnt = self.env[vname+'_'+name]
-			if cnt:
+			if cnt := self.env[f'{vname}_{name}']:
 				if self.bytecode_env:
 					self.bytecode_env.append_value(vname, cnt)
 				if self.native_env:
@@ -142,7 +139,7 @@ def apply_vars_ml(self):
 def apply_link_ml(self):
 
 	if self.bytecode_env:
-		ext = self.islibrary and '.cma' or '.run'
+		ext = '.cma' if self.islibrary else '.run'
 
 		linktask = self.create_task('ocalink')
 		linktask.bytecode = 1
@@ -225,7 +222,7 @@ def compile_may_start(self):
 
 		self.signature() # ensure that files are scanned - unfortunately
 		tree = self.generator.bld
-		for node in self.inputs:
+		for _ in self.inputs:
 			lst = tree.node_deps[self.uid()]
 			for depnode in lst:
 				for t in alltasks:
@@ -305,7 +302,7 @@ def link_may_start(self):
 			if task in seen:
 				continue
 			for x in task.run_after:
-				if not x in seen:
+				if x not in seen:
 					pendant.append(task)
 					break
 			else:

@@ -47,8 +47,9 @@ class run_halide_gen(Task.Task):
 	run_str = "${SRC[0].abspath()} ${HALIDE_ARGS}"
 	def __str__(self):
 		stuff = "halide"
-		stuff += ("[%s]" % (",".join(
-		 ('%s=%s' % (k,v)) for k, v in sorted(self.env.env.items()))))
+		stuff += "[%s]" % ",".join(
+			f'{k}={v}' for k, v in sorted(self.env.env.items())
+		)
 		return Task.Task.__str__(self).replace(self.__class__.__name__,
 		 stuff)
 
@@ -107,10 +108,7 @@ def halide(self):
 			lst = [lst]
 
 		for x in Utils.to_list(lst):
-			if isinstance(x, str):
-				node = find(x)
-			else:
-				node = x
+			node = find(x) if isinstance(x, str) else x
 			tmp.append(node)
 		return tmp
 
@@ -123,7 +121,7 @@ def halide(self):
 	if task.env.env == []:
 		task.env.env = {}
 	task.env.env.update(env)
-	task.env.HALIDE_ENV = " ".join(("%s=%s" % (k,v)) for (k,v) in sorted(env.items()))
+	task.env.HALIDE_ENV = " ".join(f"{k}={v}" for (k,v) in sorted(env.items()))
 	task.env.HALIDE_ARGS = args
 
 	try:

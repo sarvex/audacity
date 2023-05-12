@@ -104,9 +104,7 @@ def get_color(cl):
 	:param cl: color name in capital letters
 	:type cl: string
 	"""
-	if colors_lst['USE']:
-		return colors_lst.get(cl, '')
-	return ''
+	return colors_lst.get(cl, '') if colors_lst['USE'] else ''
 
 class color_dict(object):
 	"""attribute-based color access, eg: colors.PINK"""
@@ -143,14 +141,13 @@ class log_filter(logging.Filter):
 		if rec.levelno >= logging.INFO:
 			return True
 
-		m = re_log.match(rec.msg)
-		if m:
+		if m := re_log.match(rec.msg):
 			rec.zone = m.group(1)
 			rec.msg = m.group(2)
 
 		if zones:
 			return getattr(rec, 'zone', '') in zones or '*' in zones
-		elif not verbose > 2:
+		elif verbose <= 2:
 			return False
 		return True
 
@@ -181,11 +178,11 @@ class log_handler(logging.StreamHandler):
 		Writes the log record to the desired stream (stderr/stdout)
 		"""
 		self.terminator = getattr(record, 'terminator', '\n')
-		stream = self.stream
 		if unicode:
 			# python2
 			msg = self.formatter.format(record)
-			fs = '%s' + self.terminator
+			fs = f'%s{self.terminator}'
+			stream = self.stream
 			try:
 				if (isinstance(msg, unicode) and getattr(stream, 'encoding', None)):
 					fs = fs.decode(stream.encoding)
@@ -228,7 +225,7 @@ class formatter(logging.Formatter):
 				elif rec.levelno >= logging.INFO:
 					c1 = colors.GREEN
 			c2 = getattr(rec, 'c2', colors.NORMAL)
-			msg = '%s%s%s' % (c1, msg, c2)
+			msg = f'{c1}{msg}{c2}'
 		else:
 			# remove single \r that make long lines in text files
 			# and other terminal commands
@@ -266,8 +263,7 @@ def error(*k, **kw):
 	"""
 	log.error(*k, **kw)
 	if verbose > 2:
-		st = traceback.extract_stack()
-		if st:
+		if st := traceback.extract_stack():
 			st = st[:-1]
 			buf = []
 			for filename, lineno, name, line in st:
@@ -325,10 +321,7 @@ def make_logger(path, name):
 	:type name: string
 	"""
 	logger = logging.getLogger(name)
-	if sys.hexversion > 0x3000000:
-		encoding = sys.stdout.encoding
-	else:
-		encoding = None
+	encoding = sys.stdout.encoding if sys.hexversion > 0x3000000 else None
 	hdlr = logging.FileHandler(path, 'w', encoding=encoding)
 	formatter = logging.Formatter('%(message)s')
 	hdlr.setFormatter(formatter)

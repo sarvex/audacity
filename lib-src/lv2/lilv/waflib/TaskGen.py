@@ -66,7 +66,7 @@ class task_gen(object):
 		Tasks created are added to this list
 		"""
 
-		if not 'bld' in kw:
+		if 'bld' not in kw:
 			# task generators without a build context :-/
 			self.env = ConfigSet.ConfigSet()
 			self.idx = 0
@@ -100,11 +100,12 @@ class task_gen(object):
 
 	def __repr__(self):
 		"""Debugging helper"""
-		lst = []
-		for x in self.__dict__:
-			if x not in ('env', 'bld', 'compiled_tasks', 'tasks'):
-				lst.append("%s=%s" % (x, repr(getattr(self, x))))
-		return "bld(%s) in %s" % (", ".join(lst), self.path.abspath())
+		lst = [
+			f"{x}={repr(getattr(self, x))}"
+			for x in self.__dict__
+			if x not in ('env', 'bld', 'compiled_tasks', 'tasks')
+		]
+		return f'bld({", ".join(lst)}) in {self.path.abspath()}'
 
 	def get_cwd(self):
 		"""
@@ -152,10 +153,7 @@ class task_gen(object):
 		:param val: input to return as a list
 		:rtype: list
 		"""
-		if isinstance(val, str):
-			return val.split()
-		else:
-			return val
+		return val.split() if isinstance(val, str) else val
 
 	def post(self):
 		"""
@@ -177,19 +175,13 @@ class task_gen(object):
 		# add the methods listed in the features
 		self.features = Utils.to_list(self.features)
 		for x in self.features:
-			st = feats[x]
-			if st:
+			if st := feats[x]:
 				keys.update(st)
-			elif not x in Task.classes:
+			elif x not in Task.classes:
 				Logs.warn('feature %r does not exist - bind at least one method to it?', x)
 
-		# copy the precedence table
-		prec = {}
 		prec_tbl = self.prec
-		for x in prec_tbl:
-			if x in keys:
-				prec[x] = prec_tbl[x]
-
+		prec = {x: prec_tbl[x] for x in prec_tbl if x in keys}
 		# elements disconnected
 		tmp = []
 		for a in keys:
@@ -214,8 +206,8 @@ class task_gen(object):
 			else:
 				del prec[e]
 				for x in nlst:
-					for y in prec:
-						if x in prec[y]:
+					for y, value in prec.items():
+						if x in value:
 							break
 					else:
 						tmp.append(x)
@@ -223,8 +215,9 @@ class task_gen(object):
 
 		if prec:
 			buf = ['Cycle detected in the method execution:']
-			for k, v in prec.items():
-				buf.append('- %s after %s' % (k, [x for x in v if x in prec]))
+			buf.extend(
+				f'- {k} after {[x for x in v if x in prec]}' for k, v in prec.items()
+			)
 			raise Errors.WafError('\n'.join(buf))
 		self.meths = out
 
@@ -777,6 +770,7 @@ class subst_pc(Task.Task):
 				lst.append(g(1))
 				return "%%(%s)s" % g(1)
 			return ''
+
 		code = getattr(self.generator, 're_m4', re_m4).sub(repl, code)
 
 		try:
@@ -788,7 +782,7 @@ class subst_pc(Task.Task):
 				try:
 					tmp = ''.join(tmp)
 				except TypeError:
-					tmp = str(tmp)
+					tmp = tmp
 				d[x] = tmp
 
 		code = code % d
@@ -898,8 +892,7 @@ def process_subst(self):
 
 		tsk = self.create_task('subst', a, b)
 		for k in ('after', 'before', 'ext_in', 'ext_out'):
-			val = getattr(self, k, None)
-			if val:
+			if val := getattr(self, k, None):
 				setattr(tsk, k, val)
 
 		# paranoid safety measure for the general case foo.in->foo.h with ambiguous dependencies
@@ -908,8 +901,7 @@ def process_subst(self):
 				tsk.ext_out = tsk.ext_out + ['.h']
 				break
 
-		inst_to = getattr(self, 'install_path', None)
-		if inst_to:
+		if inst_to := getattr(self, 'install_path', None):
 			self.install_task = self.add_install_files(install_to=inst_to,
 				install_from=b, chmod=getattr(self, 'chmod', Utils.O644))
 

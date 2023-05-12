@@ -58,9 +58,7 @@ class ConfigSet(object):
 		while cur:
 			keys.update(cur.table.keys())
 			cur = getattr(cur, 'parent', None)
-		keys = list(keys)
-		keys.sort()
-		return keys
+		return sorted(keys)
 
 	def __iter__(self):
 		return iter(self.keys())
@@ -80,7 +78,7 @@ class ConfigSet(object):
 		try:
 			while 1:
 				x = self.table.get(key)
-				if not x is None:
+				if x is not None:
 					return x
 				self = self.parent
 		except AttributeError:
@@ -183,9 +181,7 @@ class ConfigSet(object):
 		:type key: string
 		"""
 		s = self[key]
-		if isinstance(s, str):
-			return s
-		return ' '.join(s)
+		return s if isinstance(s, str) else ' '.join(s)
 
 	def _get_list_value_for_modification(self, key):
 		"""
@@ -203,11 +199,7 @@ class ConfigSet(object):
 			except AttributeError:
 				value = []
 			else:
-				if isinstance(value, list):
-					# force a copy
-					value = value[:]
-				else:
-					value = [value]
+				value = value[:] if isinstance(value, list) else [value]
 			self.table[key] = value
 		else:
 			if not isinstance(value, list):
@@ -274,7 +266,7 @@ class ConfigSet(object):
 				break
 		merged_table = {}
 		for table in table_list:
-			merged_table.update(table)
+			merged_table |= table
 		return merged_table
 
 	def store(self, filename):
@@ -289,19 +281,16 @@ class ConfigSet(object):
 		except OSError:
 			pass
 
-		buf = []
 		merged_table = self.get_merged_dict()
-		keys = list(merged_table.keys())
-		keys.sort()
-
+		keys = sorted(merged_table.keys())
 		try:
 			fun = ascii
 		except NameError:
 			fun = repr
 
-		for k in keys:
-			if k != 'undo_stack':
-				buf.append('%s = %s\n' % (k, fun(merged_table[k])))
+		buf = [
+			'%s = %s\n' % (k, fun(merged_table[k])) for k in keys if k != 'undo_stack'
+		]
 		Utils.writef(filename, ''.join(buf))
 
 	def load(self, filename):

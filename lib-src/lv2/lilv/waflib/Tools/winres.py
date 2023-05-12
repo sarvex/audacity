@@ -14,9 +14,7 @@ def rc_file(self, node):
 	"""
 	Binds the .rc extension to a winrc task
 	"""
-	obj_ext = '.rc.o'
-	if self.env.WINRC_TGT_F == '/fo':
-		obj_ext = '.res'
+	obj_ext = '.res' if self.env.WINRC_TGT_F == '/fo' else '.rc.o'
 	rctask = self.create_task('winrc', node, node.change_ext(obj_ext))
 	try:
 		self.compiled_tasks.append(rctask)

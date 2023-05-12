@@ -49,8 +49,7 @@ re_com = re.compile(r'\s*#.*', re.M)
 def total_version_order(num):
 	lst = num.split('.')
 	template = '%10s' * len(lst)
-	ret = template % tuple(lst)
-	return ret
+	return template % tuple(lst)
 
 def get_distnet_cache():
 	return getattr(Context.g_module, 'DISTNETCACHE', DISTNETCACHE)
@@ -59,18 +58,17 @@ def get_server_url():
 	return getattr(Context.g_module, 'DISTNETSERVER', DISTNETSERVER)
 
 def get_download_url():
-	return '%s/download.py' % get_server_url()
+	return f'{get_server_url()}/download.py'
 
 def get_upload_url():
-	return '%s/upload.py' % get_server_url()
+	return f'{get_server_url()}/upload.py'
 
 def get_resolve_url():
-	return '%s/resolve.py' % get_server_url()
+	return f'{get_server_url()}/resolve.py'
 
 def send_package_name():
 	out = getattr(Context.g_module, 'out', 'build')
-	pkgfile = '%s/package_to_upload.tarfile' % out
-	return pkgfile
+	return f'{out}/package_to_upload.tarfile'
 
 class package(Context.Context):
 	fun = 'package'
@@ -84,8 +82,8 @@ class package(Context.Context):
 
 		Context.Context.execute(self)
 		pkgfile = send_package_name()
-		if not pkgfile in files:
-			if not REQUIRES in files:
+		if pkgfile not in files:
+			if REQUIRES not in files:
 				files.append(REQUIRES)
 			self.make_tarfile(pkgfile, files, add_to_package=False)
 
@@ -103,10 +101,7 @@ class package(Context.Context):
 				tarinfo.size = os.stat(x).st_size
 
 				# TODO - more archive creation options?
-				if kw.get('bare', True):
-					tarinfo.name = os.path.split(x)[1]
-				else:
-					tarinfo.name = endname + x # todo, if tuple, then..
+				tarinfo.name = os.path.split(x)[1] if kw.get('bare', True) else endname + x
 				Logs.debug('distnet: adding %r to %s', tarinfo.name, filename)
 				with open(x, 'rb') as f:
 					tar.addfile(tarinfo, f)
@@ -146,8 +141,7 @@ class constraint(object):
 		if not line:
 			return
 
-		lst = line.split(',')
-		if lst:
+		if lst := line.split(','):
 			self.pkgname = lst[0]
 			self.required_version = lst[1]
 			for k in lst:
@@ -155,25 +149,18 @@ class constraint(object):
 				if a and c:
 					self.info.append((a, c))
 	def __str__(self):
-		buf = []
-		buf.append(self.pkgname)
-		buf.append(self.required_version)
-		for k in self.info:
-			buf.append('%s=%s' % k)
+		buf = [self.pkgname, self.required_version]
+		buf.extend('%s=%s' % k for k in self.info)
 		return ','.join(buf)
 
 	def __repr__(self):
-		return "requires %s-%s" % (self.pkgname, self.required_version)
+		return f"requires {self.pkgname}-{self.required_version}"
 
 	def human_display(self, pkgname, pkgver):
-		return '%s-%s requires %s-%s' % (pkgname, pkgver, self.pkgname, self.required_version)
+		return f'{pkgname}-{pkgver} requires {self.pkgname}-{self.required_version}'
 
 	def why(self):
-		ret = []
-		for x in self.info:
-			if x[0] == 'reason':
-				ret.append(x[1])
-		return ret
+		return [x[1] for x in self.info if x[0] == 'reason']
 
 	def add_reason(self, reason):
 		self.info.append(('reason', reason))
@@ -184,10 +171,8 @@ def parse_constraints(text):
 	text = re.sub(re_com, '', text)
 	lines = text.splitlines()
 	for line in lines:
-		line = line.strip()
-		if not line:
-			continue
-		constraints.append(constraint(line))
+		if line := line.strip():
+			constraints.append(constraint(line))
 	return constraints
 
 def list_package_versions(cachedir, pkgname):
@@ -263,8 +248,7 @@ class package_reader(Context.Context):
 	def apply_constraint(self, domain, constraint):
 		vname = constraint.required_version.replace('*', '.*')
 		rev = re.compile(vname, re.M)
-		ret = [x for x in domain if rev.match(x)]
-		return ret
+		return [x for x in domain if rev.match(x)]
 
 	def trace(self, *k):
 		if getattr(self, 'debug', None):
@@ -289,7 +273,7 @@ class package_reader(Context.Context):
 
 
 			self.trace("constraints?")
-			if not k.pkgname in done:
+			if k.pkgname not in done:
 				todo = todo + [k.pkgname]
 
 			self.trace("domain before %s -> %s, %r" % (pkgname, k.pkgname, domain))
@@ -319,7 +303,7 @@ class package_reader(Context.Context):
 		tmp = dict(n_packages_to_versions)
 		tmp[n_pkgname] = [n_pkgver]
 
-		self.trace("fixed point %s" % n_pkgname)
+		self.trace(f"fixed point {n_pkgname}")
 
 		return self.solve(tmp, n_packages_to_constraints, n_pkgname, n_pkgver, todo[1:], done)
 
@@ -333,10 +317,7 @@ class package_reader(Context.Context):
 			solution.append(c)
 
 			c.pkgname = p
-			if versions[p]:
-				c.required_version = versions[p][0]
-			else:
-				c.required_version = ''
+			c.required_version = versions[p][0] if versions[p] else ''
 			for (from_pkgname, from_pkgver, c2) in constraints.get(p, ''):
 				c.add_reason(c2.human_display(from_pkgname, from_pkgver))
 		return solution
@@ -352,10 +333,10 @@ class package_reader(Context.Context):
 		req = urlopen(get_download_url(), data, timeout=TIMEOUT)
 		with open(tmp, 'wb') as f:
 			while True:
-				buf = req.read(8192)
-				if not buf:
+				if buf := req.read(8192):
+					f.write(buf)
+				else:
 					break
-				f.write(buf)
 
 	def extract_tar(self, subdir, pkgdir, tmpfile):
 		with tarfile.open(tmpfile) as f:

@@ -27,8 +27,9 @@ def openf95_flags(conf):
 @conf
 def openf95_modifier_platform(conf):
 	dest_os = conf.env['DEST_OS'] or Utils.unversioned_sys_platform()
-	openf95_modifier_func = getattr(conf, 'openf95_modifier_' + dest_os, None)
-	if openf95_modifier_func:
+	if openf95_modifier_func := getattr(
+		conf, f'openf95_modifier_{dest_os}', None
+	):
 		openf95_modifier_func()
 
 @conf
@@ -39,10 +40,7 @@ def get_open64_version(conf, fc):
 	cmd = fc + ['-version']
 
 	out, err = fc_config.getoutput(conf,cmd,stdin=False)
-	if out:
-		match = version_re(out)
-	else:
-		match = version_re(err)
+	match = version_re(out) if out else version_re(err)
 	if not match:
 		conf.fatal('Could not determine the Open64 version.')
 	k = match.groupdict()

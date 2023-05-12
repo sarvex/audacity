@@ -40,10 +40,9 @@ def _as_uri(obj):
     """Utility function for converting some object into a URI node"""
     if type(obj) in [Plugin, PluginClass, UI]:
         return obj.get_uri()
-    else:
-        assert type(obj) == Node
-        assert obj.node
-        return Node(obj.world, c.node_duplicate(obj.node))
+    assert type(obj) == Node
+    assert obj.node
+    return Node(obj.world, c.node_duplicate(obj.node))
 
 
 # LV2 types
@@ -474,10 +473,7 @@ class Port(Structure):
 
     @classmethod
     def wrap(cls, plugin, port):
-        if plugin is not None and port:
-            return Port(plugin, port)
-
-        return None
+        return Port(plugin, port) if plugin is not None and port else None
 
     def __init__(self, plugin, port):
         assert isinstance(plugin, Plugin)
@@ -671,7 +667,7 @@ class UI(Structure):
         return str(self.get_uri())
 
     def __eq__(self, other):
-        if type(other) == str or type(other) == Node:
+        if type(other) in [str, Node]:
             return self.get_uri() == other
 
         return self.get_uri() == other.get_uri()
@@ -723,10 +719,7 @@ class Node(Structure):
     def wrap(cls, world, node):
         assert isinstance(world, World)
         assert (node is None) or (type(node) == POINTER(Node))
-        if node:
-            return Node(world, node)
-
-        return None
+        return Node(world, node) if node else None
 
     def __init__(self, world, node):
         assert type(node) == POINTER(Node)
@@ -762,17 +755,17 @@ class Node(Structure):
 
     def __int__(self):
         if not self.is_int():
-            raise ValueError("node %s is not an integer" % str(self))
+            raise ValueError(f"node {str(self)} is not an integer")
         return c.node_as_int(self.node)
 
     def __float__(self):
         if not self.is_float():
-            raise ValueError("node %s is not a float" % str(self))
+            raise ValueError(f"node {str(self)} is not a float")
         return c.node_as_float(self.node)
 
     def __bool__(self):
         if not self.is_bool():
-            raise ValueError("node %s is not a bool" % str(self))
+            raise ValueError(f"node {str(self)} is not a bool")
         return c.node_as_bool(self.node)
 
     __nonzero__ = __bool__
@@ -957,7 +950,7 @@ class Plugins(Collection):
 
         plugin = self.get_by_uri(key)
         if plugin is None:
-            raise KeyError("Plugin not found: " + str(key))
+            raise KeyError(f"Plugin not found: {str(key)}")
 
         return plugin
 
@@ -1004,7 +997,7 @@ class PluginClasses(Collection):
 
         klass = self.get_by_uri(key)
         if klass is None:
-            raise KeyError("Plugin class not found: " + str(key))
+            raise KeyError(f"Plugin class not found: {str(key)}")
 
         return klass
 
@@ -1054,7 +1047,7 @@ class UIs(Collection):
 
         ui = self.get_by_uri(key)
         if ui is None:
-            raise KeyError("Plugin UI not found: " + str(key))
+            raise KeyError(f"Plugin UI not found: {str(key)}")
 
         return ui
 
@@ -1254,8 +1247,7 @@ class World(Structure):
         be loaded into the world model.
         """
         uri = _as_uri(resource)
-        ret = c.world_load_resource(self.world, uri.node)
-        return ret
+        return c.world_load_resource(self.world, uri.node)
 
     def unload_resource(self, resource):
         """Unload all the data associated with the given `resource`.
@@ -1266,8 +1258,7 @@ class World(Structure):
         load_resource() with the given `resource`.
         """
         uri = _as_uri(resource)
-        ret = c.world_unload_resource(self.world, uri.node)
-        return ret
+        return c.world_unload_resource(self.world, uri.node)
 
     def get_plugin_class(self):
         """Get the parent of all other plugin classes, lv2:Plugin."""
@@ -1360,11 +1351,10 @@ class World(Structure):
 
     def new_uri(self, uri):
         """Create a new URI node."""
-        c_node = c.new_uri(self.world, uri)
-        if not c_node:
-            raise ValueError("Invalid URI '%s'" % uri)
-
-        return Node.wrap(self, c_node)
+        if c_node := c.new_uri(self.world, uri):
+            return Node.wrap(self, c_node)
+        else:
+            raise ValueError(f"Invalid URI '{uri}'")
 
     def new_file_uri(self, host, path):
         """Create a new file URI node.  The host may be None."""
@@ -1525,7 +1515,7 @@ class VariadicFunction(object):
 
 class String(str):
     # Wrapper for string parameters to pass as raw C UTF-8 strings
-    def from_param(cls, obj):
+    def from_param(self, obj):
         assert isinstance(obj, str)
         return obj.encode("utf-8")
 
@@ -1535,7 +1525,7 @@ class String(str):
 def _cfunc(name, restype, *argtypes):
     """Set the `name` attribute of the `c` global to a C function"""
     assert isinstance(c, _LilvLib)
-    f = getattr(c.lib, "lilv_" + name)
+    f = getattr(c.lib, f"lilv_{name}")
     f.restype = restype
     f.argtypes = argtypes
     setattr(c, name, f)

@@ -24,12 +24,12 @@ if sys.version_info[0] == 2:
     import urllib
     import urlparse
 
-    location = urlparse.urljoin("file:", urllib.pathname2url(path) + "/")
+    location = urlparse.urljoin("file:", f"{urllib.pathname2url(path)}/")
 else:
     from urllib.parse import urljoin
     from urllib.request import pathname2url
 
-    location = urljoin("file:", pathname2url(path) + "/")
+    location = urljoin("file:", f"{pathname2url(path)}/")
 
 
 class NodeTests(unittest.TestCase):
@@ -155,9 +155,7 @@ class PluginTests(unittest.TestCase):
             lilv.OPTION_FILTER_LANG, self.world.new_bool(True)
         )
         self.bundle_uri = self.world.new_uri(location)
-        self.assertIsNotNone(
-            self.bundle_uri, "Invalid URI: '" + location + "'"
-        )
+        self.assertIsNotNone(self.bundle_uri, f"Invalid URI: '{location}'")
         self.world.load_bundle(self.bundle_uri)
         self.plugins = self.world.get_all_plugins()
         self.plugin = self.plugins.get(self.plugins.begin())
@@ -169,8 +167,7 @@ class PluginTests(unittest.TestCase):
             self.plugins["http://example.org/notaplugin"].get_uri()
 
         self.assertIsNotNone(
-            self.plugin,
-            msg="Test plugin not found at location: '" + location + "'",
+            self.plugin, msg=f"Test plugin not found at location: '{location}'"
         )
         self.assertEqual(location, str(self.plugin.get_bundle_uri()))
         self.plugin_uri = self.plugin.get_uri()
@@ -416,9 +413,7 @@ class UITests(unittest.TestCase):
         self.assertEqual(uis[0], str(ui_uri))
         self.assertEqual(uis[0].get_uri(), ui_uri)
         self.assertEqual(uis[0].get_bundle_uri(), self.bundle_uri)
-        self.assertEqual(
-            uis[0].get_binary_uri(), str(self.bundle_uri) + "TODO"
-        )
+        self.assertEqual(uis[0].get_binary_uri(), f"{str(self.bundle_uri)}TODO")
         self.assertEqual(uis[uis[0].get_uri()], uis[0])
         self.assertTrue(uis[0].is_a(self.world.ns.ui.GtkUI))
         self.assertTrue(uis[0] in uis)

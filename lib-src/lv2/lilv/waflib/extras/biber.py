@@ -21,18 +21,22 @@ class tex(texmodule.tex):
 		return None
 
 	def bibunits(self):
-		self.env.env = {}
-		self.env.env.update(os.environ)
-		self.env.env.update({'BIBINPUTS': self.texinputs(), 'BSTINPUTS': self.texinputs()})
+		self.env.env = os.environ | {
+			'BIBINPUTS': self.texinputs(),
+			'BSTINPUTS': self.texinputs(),
+		}
 		self.env.SRCFILE = self.aux_nodes[0].name[:-4]
 
 		if not self.env['PROMPT_LATEX']:
 			self.env.append_unique('BIBERFLAGS', '--quiet')
 
-		path = self.aux_nodes[0].abspath()[:-4] + '.bcf'
+		path = f'{self.aux_nodes[0].abspath()[:-4]}.bcf'
 		if os.path.isfile(path):
 			Logs.warn('calling biber')
-			self.check_status('error when calling biber, check %s.blg for errors' % (self.env.SRCFILE), self.biber_fun())
+			self.check_status(
+				f'error when calling biber, check {self.env.SRCFILE}.blg for errors',
+				self.biber_fun(),
+			)
 		else:
 			super(tex, self).bibfile()
 			super(tex, self).bibunits()

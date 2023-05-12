@@ -64,18 +64,18 @@ def clang_modifier_i386_w64_mingw32(conf):
 def clang_modifier_x86_64_windows_msvc(conf):
 	conf.clang_modifier_msvc()
 
-	# Allow the user to override any flags if they so desire.
-	clang_modifier_user_func = getattr(conf, 'clang_modifier_x86_64_windows_msvc_user', None)
-	if clang_modifier_user_func:
+	if clang_modifier_user_func := getattr(
+		conf, 'clang_modifier_x86_64_windows_msvc_user', None
+	):
 		clang_modifier_user_func()
 
 @conf
 def clang_modifier_i386_windows_msvc(conf):
 	conf.clang_modifier_msvc()
 
-	# Allow the user to override any flags if they so desire.
-	clang_modifier_user_func = getattr(conf, 'clang_modifier_i386_windows_msvc_user', None)
-	if clang_modifier_user_func:
+	if clang_modifier_user_func := getattr(
+		conf, 'clang_modifier_i386_windows_msvc_user', None
+	):
 		clang_modifier_user_func()
 
 def configure(conf):

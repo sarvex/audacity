@@ -65,12 +65,10 @@ class batch(Task.Task):
 			if not t.hasrun:
 				return Task.ASK_LATER
 
-		for t in self.slaves:
-			#if t.executed:
-			if t.hasrun != Task.SKIPPED:
-				return Task.RUN_ME
-
-		return Task.SKIP_ME
+		return next(
+			(Task.RUN_ME for t in self.slaves if t.hasrun != Task.SKIPPED),
+			Task.SKIP_ME,
+		)
 
 	def get_cwd(self):
 		return self.slaves[0].outputs[0].parent
@@ -108,11 +106,7 @@ def hook(cls_type):
 		ext = '.obj' if self.env.CC_NAME == 'msvc' else '.o'
 		name = node.name
 		k = name.rfind('.')
-		if k >= 0:
-			basename = name[:k] + ext
-		else:
-			basename = name + ext
-
+		basename = name[:k] + ext if k >= 0 else name + ext
 		outdir = node.parent.get_bld().make_node('%d' % self.idx)
 		outdir.mkdir()
 		out = outdir.find_or_declare(basename)
@@ -132,7 +126,7 @@ def hook(cls_type):
 			if self.env.CC_NAME == 'msvc':
 				tsk.env.append_unique('CXX_TGT_F_BATCHED', '/Fo%s\\' % outdir.abspath())
 
-		if not node.parent in self.masters:
+		if node.parent not in self.masters:
 			m = self.masters[node.parent] = self.master = self.create_task('batch')
 			fix_path(m)
 			self.allmasters.append(m)
@@ -144,6 +138,7 @@ def hook(cls_type):
 				self.allmasters.append(m)
 		m.add_slave(task)
 		return task
+
 	return n_hook
 
 extension('.c')(hook('c'))

@@ -29,9 +29,9 @@ def h_file(self):
 
 	if STRONGEST:
 		ret = Utils.h_file(filename)
+	elif stat.S_ISDIR(st[stat.ST_MODE]):
+		raise IOError('Not a file')
 	else:
-		if stat.S_ISDIR(st[stat.ST_MODE]):
-			raise IOError('Not a file')
 		ret = Utils.md5(str((st.st_mtime, st.st_size)).encode()).digest()
 
 	cache[filename] = (st.st_mtime, ret)

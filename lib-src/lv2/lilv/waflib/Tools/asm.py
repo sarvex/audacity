@@ -61,8 +61,6 @@ class asm(Task.Task):
 	def scan(self):
 		if self.env.ASM_NAME == 'gas':
 			return c_preproc.scan(self)
-			Logs.warn('There is no dependency scanner for Nasm!')
-			return  [[], []]
 		elif self.env.ASM_NAME == 'nasm':
 			Logs.warn('The Nasm dependency scanner is incomplete!')
 
